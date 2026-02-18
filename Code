@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMT PRO - Fully Editable Feature Sheet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; margin: 0; }
+
+        .bg-bmt-yellow { background-color: #FBBF24 !important; }
+        .text-bmt-yellow { color: #FBBF24 !important; }
+        .border-bmt-yellow { border-color: #FBBF24 !important; }
+        
+        @media print {
+            @page { size: A4; margin: 0; }
+            body > *:not(main), aside, #printAssistant, .no-print { display: none !important; }
+            body { background-color: white !important; margin: 0 !important; padding: 0 !important; }
+            main { padding: 0 !important; margin: 0 !important; width: 100% !important; display: block !important; }
+            .sheet-container { 
+                margin: 0 !important; 
+                width: 100% !important; 
+                max-width: 100% !important;
+                border: none !important;
+                box-shadow: none !important;
+                position: absolute;
+                top: 0;
+                left: 0;
+            }
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+            }
+        }
+
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #09090b; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #FBBF24; border-radius: 10px; }
+        
+        .spinner {
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 2px solid #fff;
+            width: 14px;
+            height: 14px;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="flex flex-col lg:flex-row min-h-screen">
+
+    <!-- Assistant Overlay -->
+    <div id="printAssistant" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-6 hidden no-print">
+        <div class="bg-zinc-900 border-2 border-amber-400 max-w-md w-full rounded-2xl p-8 text-center shadow-2xl">
+            <h2 class="text-white text-xl font-black uppercase mb-4 tracking-tight italic">Edge Export Assistant</h2>
+            <div class="bg-black/50 p-6 rounded-lg text-left text-xs space-y-4 mb-8 border border-zinc-800">
+                <div class="flex items-start gap-3">
+                    <span class="w-5 h-5 bg-amber-400 rounded-full flex items-center justify-center text-black font-bold shrink-0">1</span>
+                    <span class="text-zinc-300">Set Destination to <strong class="text-white">"Save as PDF"</strong></span>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="w-5 h-5 bg-amber-400 rounded-full flex items-center justify-center text-black font-bold shrink-0">2</span>
+                    <span class="text-zinc-300">Open <strong class="text-white">"More settings"</strong></span>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="w-5 h-5 bg-amber-400 rounded-full flex items-center justify-center text-black font-bold shrink-0">3</span>
+                    <span class="text-zinc-300">Check <strong class="text-white">"Background graphics"</strong></span>
+                </div>
+            </div>
+            <button onclick="triggerFinalPrint()" class="w-full bg-amber-400 hover:bg-amber-300 text-black py-4 rounded-xl font-black uppercase tracking-widest transition shadow-lg">
+                Open Print Window
+            </button>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="w-full lg:w-[420px] bg-zinc-950 text-white p-6 no-print overflow-y-auto lg:h-screen sticky top-0 border-r-4 border-amber-400 custom-scroll">
+        <div class="flex items-center gap-3 mb-8">
+            <div class="bg-white p-1 rounded-sm w-10 h-10 flex items-center justify-center shadow-inner">
+                <img src="logo (4).png" alt="BMT" class="max-w-full max-h-full object-contain" onerror="this.src='https://via.placeholder.com/40?text=BMT'">
+            </div>
+            <div>
+                <h1 class="text-xl font-black italic tracking-tighter uppercase leading-none">BMT PRO</h1>
+                <p class="text-[9px] font-bold text-amber-400 uppercase tracking-widest mt-1">Full Edit Edition v9.0</p>
+            </div>
+        </div>
+
+        <!-- System Console -->
+        <div id="statusBox" class="mb-6 p-3 bg-black rounded border border-zinc-800 hidden">
+            <div class="flex items-center gap-3">
+                <div class="spinner"></div>
+                <span id="statusText" class="text-[10px] font-mono text-amber-400 uppercase tracking-widest">Initialising...</span>
+            </div>
+        </div>
+
+        <!-- Image Manager -->
+        <div class="mb-8">
+            <h3 class="text-[10px] font-black uppercase text-zinc-500 mb-4 tracking-widest border-b border-zinc-800 pb-2">Photo Manager</h3>
+            <div id="sidebarGallery" class="grid grid-cols-4 gap-2 mb-4"></div>
+            <button onclick="document.getElementById('localUpload').click()" class="w-full bg-amber-400/10 border border-amber-400/30 hover:bg-amber-400/20 py-3 rounded text-[10px] font-black uppercase flex items-center justify-center gap-2 transition text-amber-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                Upload Multiple Photos
+            </button>
+            <input type="file" id="localUpload" class="hidden" multiple onchange="handleManualUpload(event)">
+        </div>
+
+        <!-- Basic Data -->
+        <div class="space-y-4 mb-8">
+            <h3 class="text-[10px] font-black uppercase text-zinc-500 mb-4 tracking-widest border-b border-zinc-800 pb-2">General Info</h3>
+            <div>
+                <label class="block text-[9px] font-black text-zinc-400 uppercase mb-1">Equipment Name</label>
+                <input id="inName" oninput="updateSheet()" type="text" value="2017 Ditch Witch RT125Q Quad Vibratory Plow" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm focus:border-amber-400 outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[9px] font-black text-zinc-400 uppercase mb-1">Price ($)</label>
+                    <input id="inPrice" oninput="updateSheet()" type="text" value="145,000" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm font-black text-amber-400 outline-none">
+                </div>
+                <div>
+                    <label class="block text-[9px] font-black text-zinc-400 uppercase mb-1">Stock ID</label>
+                    <input id="inStock" oninput="updateSheet()" type="text" value="RT125Q-OMAHA" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm outline-none">
+                </div>
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-zinc-400 uppercase mb-1">Marketing Script</label>
+                <textarea id="inDesc" oninput="updateSheet()" rows="3" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-400 focus:border-amber-400 outline-none">Excellent one-owner 2017 Ditch Witch RT125Q with only 1,458 original hours. Equipped with a Cummins diesel engine and a VP120Q vibratory plow attachment for clean, fast cable and fiber burial.</textarea>
+            </div>
+        </div>
+
+        <!-- Technical Advantages Manager -->
+        <div class="space-y-4 mb-8">
+            <h3 class="text-[10px] font-black uppercase text-zinc-500 mb-4 tracking-widest border-b border-zinc-800 pb-2">Technical Advantages</h3>
+            <div class="space-y-2">
+                <input id="inFeat1" oninput="updateSheet()" type="text" value="Reliable Cummins diesel engine standard for heavy-duty plowing." class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-[10px] focus:border-amber-400 outline-none">
+                <input id="inFeat2" oninput="updateSheet()" type="text" value="Quad track system provides superior traction and flotation." class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-[10px] focus:border-amber-400 outline-none">
+                <input id="inFeat3" oninput="updateSheet()" type="text" value="VP120Q vibratory plow attachment for high-speed fiber burial." class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-[10px] focus:border-amber-400 outline-none">
+                <input id="inFeat4" oninput="updateSheet()" type="text" value="Integrated reel carrier for efficient handling on the jobsite." class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-[10px] focus:border-amber-400 outline-none">
+            </div>
+        </div>
+
+        <!-- Tech Specs Manager -->
+        <div class="space-y-4 mb-8">
+            <h3 class="text-[10px] font-black uppercase text-zinc-500 mb-4 tracking-widest border-b border-zinc-800 pb-2">Technical Specs Table</h3>
+            <div class="space-y-3">
+                <div class="flex gap-2">
+                    <input id="inSpecL1" oninput="updateSheet()" type="text" value="Model Year" class="w-1/2 bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-[9px] uppercase font-bold outline-none">
+                    <input id="inSpecV1" oninput="updateSheet()" type="text" value="2017" class="w-1/2 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-[9px] font-black text-amber-400 outline-none">
+                </div>
+                <div class="flex gap-2">
+                    <input id="inSpecL2" oninput="updateSheet()" type="text" value="Engine" class="w-1/2 bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-[9px] uppercase font-bold outline-none">
+                    <input id="inSpecV2" oninput="updateSheet()" type="text" value="Deutz 121HP" class="w-1/2 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-[9px] font-black text-amber-400 outline-none">
+                </div>
+                <div class="flex gap-2">
+                    <input id="inSpecL3" oninput="updateSheet()" type="text" value="Hours" class="w-1/2 bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-[9px] uppercase font-bold outline-none">
+                    <input id="inSpecV3" oninput="updateSheet()" type="text" value="1,458 Orig." class="w-1/2 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-[9px] font-black text-amber-400 outline-none">
+                </div>
+                <div class="flex gap-2">
+                    <input id="inSpecL4" oninput="updateSheet()" type="text" value="Drive" class="w-1/2 bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-[9px] uppercase font-bold outline-none">
+                    <input id="inSpecV4" oninput="updateSheet()" type="text" value="Quad Track" class="w-1/2 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-[9px] font-black text-amber-400 outline-none">
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-[9px] font-black text-zinc-400 uppercase mb-1">Agent & Contact</label>
+            <input id="inAgent" oninput="updateSheet()" type="text" value="Mitch Swartzendruber • 402-981-7371" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm focus:border-amber-400 outline-none mb-8">
+        </div>
+
+        <!-- Export Hub -->
+        <div class="space-y-3 pt-6 border-t border-zinc-800">
+            <button onclick="exportPDFWithPicker()" id="pdfBtn" class="w-full bg-amber-400 hover:bg-amber-300 text-black py-4 rounded-xl font-black uppercase tracking-widest transition flex items-center justify-center gap-3 shadow-xl active:scale-95">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                Save PDF (Folder Select)
+            </button>
+            <button onclick="showPrintAssistant()" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white py-3 rounded-lg font-black text-[10px] uppercase transition flex items-center justify-center gap-2 border border-zinc-700">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                Alternative Print
+            </button>
+        </div>
+    </aside>
+
+    <!-- Preview -->
+    <main class="flex-grow p-4 md:p-10 flex flex-col items-center overflow-auto">
+        <div id="sheet" class="sheet-container w-full max-w-4xl bg-white shadow-2xl overflow-hidden print-shadow-none border border-gray-200">
+            <!-- Header -->
+            <header class="bg-zinc-900 flex text-white relative">
+                <div class="p-8 flex-grow">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-12 h-12 bg-white rounded-sm flex items-center justify-center p-1 overflow-hidden shadow-inner">
+                            <img src="logo (4).png" alt="Logo" class="max-w-full max-h-full object-contain" onerror="this.src='https://via.placeholder.com/48?text=BMT'">
+                        </div>
+                        <span class="text-3xl font-extrabold tracking-tighter italic uppercase leading-none">BIG MOTOR TRADERS</span>
+                    </div>
+                    <h2 id="sheetName" class="text-4xl font-black uppercase leading-none mb-1 tracking-tight">2017 Ditch Witch RT125Q Quad Vibratory Plow</h2>
+                    <p id="sheetCategory" class="text-bmt-yellow font-bold text-xl uppercase tracking-widest">Heavy-Duty Utility Solutions • Official Inventory</p>
+                </div>
+                <div class="bg-bmt-yellow w-36 flex flex-col items-center justify-center p-4 shrink-0 text-zinc-900 border-l-4 border-white/20">
+                    <span class="font-black text-[10px] uppercase text-center leading-tight opacity-70">Stock Unit</span>
+                    <span id="sheetStock" class="font-black text-2xl tracking-tighter italic">RT125Q-OMAHA</span>
+                </div>
+            </header>
+
+            <div class="p-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div class="md:col-span-2 space-y-6">
+                        <div class="relative bg-gray-100 rounded-xl overflow-hidden border-2 border-gray-100 aspect-[4/3] shadow-inner flex items-center justify-center">
+                            <img id="sheetImage" src="%2339304%20-%202015%20Ditch%20Witch%20RT120%20Quad%20listed%20with%20HDD%20Broker_files/39304--ecd1ebad-109a-403f-8641-d0ec037dcc39.jpg" class="w-full h-full object-cover">
+                            <div class="absolute bottom-4 left-4 bg-bmt-yellow text-black px-4 py-1 font-black text-sm uppercase shadow-lg border border-white/50">Hero Shot</div>
+                        </div>
+                        <div id="sheetGallery" class="grid grid-cols-4 gap-3 pt-2"></div>
+                        <div class="bg-zinc-50 p-6 rounded-xl border border-zinc-100 relative shadow-sm">
+                             <div class="absolute -top-3 left-6 bg-zinc-900 text-white px-3 py-1 text-[9px] font-black uppercase italic tracking-widest">Machine Profile</div>
+                             <p id="sheetDesc" class="text-xs text-gray-700 leading-relaxed font-medium mt-2">Excellent one-owner 2017 Ditch Witch RT125Q with only 1,458 original hours. Equipped with a Cummins diesel engine and a VP120Q vibratory plow attachment for clean, fast cable and fiber burial.</p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-1 gap-x-8 gap-y-4 pt-2">
+                             <h3 class="col-span-full text-zinc-900 font-black uppercase border-b-4 border-bmt-yellow inline-block italic tracking-tighter mb-2">Technical Advantage</h3>
+                             <div class="flex items-start gap-2">
+                                 <span class="text-bmt-yellow font-black">▶</span>
+                                 <p id="sheetFeat1" class="text-[11px] text-gray-700 font-bold leading-tight">Reliable Cummins diesel engine standard for heavy-duty plowing.</p>
+                             </div>
+                             <div class="flex items-start gap-2">
+                                 <span class="text-bmt-yellow font-black">▶</span>
+                                 <p id="sheetFeat2" class="text-[11px] text-gray-700 font-bold leading-tight">Quad track system provides superior traction and flotation.</p>
+                             </div>
+                             <div class="flex items-start gap-2">
+                                 <span class="text-bmt-yellow font-black">▶</span>
+                                 <p id="sheetFeat3" class="text-[11px] text-gray-700 font-bold leading-tight">VP120Q vibratory plow attachment for high-speed fiber burial.</p>
+                             </div>
+                             <div class="flex items-start gap-2">
+                                 <span class="text-bmt-yellow font-black">▶</span>
+                                 <p id="sheetFeat4" class="text-[11px] text-gray-700 font-bold leading-tight">Integrated reel carrier for efficient handling on the jobsite.</p>
+                             </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-6">
+                        <div class="bg-zinc-900 p-6 rounded-sm text-white shadow-xl border-l-4 border-bmt-yellow">
+                            <p class="text-[10px] uppercase font-bold text-zinc-400 mb-1">Target Price (EXW)</p>
+                            <div id="sheetPrice" class="text-4xl font-black text-bmt-yellow tracking-tighter leading-none">$145,000</div>
+                            <p class="text-[9px] text-zinc-500 mt-2 italic font-medium leading-none">Broker Verified</p>
+                        </div>
+
+                        <div class="bg-zinc-50 p-5 border-l-4 border-bmt-yellow shadow-sm rounded-r-lg">
+                            <h3 class="text-[10px] font-black uppercase text-zinc-500 mb-4 tracking-widest border-b border-zinc-200 pb-2">Tech Specs</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between border-b border-zinc-200 pb-1 mb-2">
+                                    <span id="sheetSpecL1" class="text-[9px] text-zinc-400 font-black uppercase tracking-tighter">Model Year</span>
+                                    <span id="sheetSpecV1" class="text-xs font-black text-zinc-900">2017</span>
+                                </div>
+                                <div class="flex justify-between border-b border-zinc-200 pb-1 mb-2">
+                                    <span id="sheetSpecL2" class="text-[9px] text-zinc-400 font-black uppercase tracking-tighter">Engine</span>
+                                    <span id="sheetSpecV2" class="text-xs font-black text-zinc-900">Deutz 121HP</span>
+                                </div>
+                                <div class="flex justify-between border-b border-zinc-200 pb-1 mb-2">
+                                    <span id="sheetSpecL3" class="text-[9px] text-zinc-400 font-black uppercase tracking-tighter">Hours</span>
+                                    <span id="sheetSpecV3" class="text-xs font-black text-zinc-900">1,458 Orig.</span>
+                                </div>
+                                <div class="flex justify-between border-b border-zinc-200 pb-1 mb-2">
+                                    <span id="sheetSpecL4" class="text-[9px] text-zinc-400 font-black uppercase tracking-tighter">Drive</span>
+                                    <span id="sheetSpecV4" class="text-xs font-black text-zinc-900">Quad Track</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-zinc-900 border-2 border-bmt-yellow p-5 rounded-xl text-center shadow-lg group">
+                            <p class="text-[10px] uppercase font-bold text-bmt-yellow mb-1 tracking-widest">Listing Status</p>
+                            <p class="text-xs font-black text-white italic uppercase leading-none">Inspection Ready</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-12 pt-8 border-t-4 border-zinc-900 grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <h4 class="text-[10px] font-black uppercase mb-2 text-zinc-400">Agent Verification</h4>
+                        <p id="sheetAgentDisplay" class="text-xs font-black text-zinc-900 leading-tight">Mitch Swartzendruber</p>
+                        <p class="text-xs text-zinc-500 font-bold tracking-widest uppercase mt-1">402-981-7371</p>
+                    </div>
+                    <div class="flex flex-col md:items-end justify-center">
+                        <p class="text-[10px] font-black text-zinc-900 uppercase tracking-widest italic">www.bigmotortraders.com</p>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="bg-bmt-yellow py-3 px-8 border-t border-black/10">
+                <p class="text-[9px] font-black uppercase tracking-widest text-zinc-900 text-center leading-tight">
+                    BIG MOTOR TRADERS: Verified Inventory Solutions.
+                </p>
+            </footer>
+        </div>
+    </main>
+
+    <script>
+        let uploadedImages = [
+            '%2339304%20-%202015%20Ditch%20Witch%20RT120%20Quad%20listed%20with%20HDD%20Broker_files/39304--ecd1ebad-109a-403f-8641-d0ec037dcc39.jpg',
+            '%2339304%20-%202015%20Ditch%20Witch%20RT120%20Quad%20listed%20with%20HDD%20Broker_files/39304--0810d70a-d39e-487a-ae8e-c9adbe410d9b.jpg',
+            '%2339304%20-%202015%20Ditch%20Witch%20RT120%20Quad%20listed%20with%20HDD%20Broker_files/39304--0be8f3bb-1cf1-4460-ba45-8ee1cca3321b.jpg',
+            '%2339304%20-%202015%20Ditch%20Witch%20RT120%20Quad%20listed%20with%20HDD%20Broker_files/39304--155dd132-f7e6-44ec-bb55-226a07884313.jpg'
+        ];
+
+        function setHero(index) {
+            const item = uploadedImages.splice(index, 1)[0];
+            uploadedImages.unshift(item);
+            renderGalleries();
+        }
+
+        function deleteImage(index) {
+            if (uploadedImages.length <= 1) { alert("You must keep at least one image."); return; }
+            uploadedImages.splice(index, 1);
+            renderGalleries();
+        }
+
+        function renderGalleries() {
+            const sidebar = document.getElementById('sidebarGallery');
+            const sheet = document.getElementById('sheetGallery');
+            sidebar.innerHTML = "";
+            sheet.innerHTML = "";
+
+            uploadedImages.forEach((img, idx) => {
+                const sideItem = document.createElement('div');
+                sideItem.className = "relative group aspect-square bg-zinc-800 rounded border border-zinc-700 overflow-hidden hover:border-amber-400 transition cursor-pointer";
+                sideItem.onclick = () => setHero(idx);
+                sideItem.innerHTML = `<img src="${img}" class="w-full h-full object-cover"><button onclick="event.stopPropagation(); deleteImage(${idx})" class="absolute top-0 right-0 bg-red-600 text-white p-1 opacity-0 group-hover:opacity-100 transition"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>`;
+                sidebar.appendChild(sideItem);
+
+                if (idx > 0) {
+                    const sheetItem = document.createElement('div');
+                    sheetItem.className = "aspect-square bg-gray-100 rounded-lg border-2 border-gray-100 overflow-hidden shadow-sm hover:border-amber-400 transition cursor-pointer";
+                    sheetItem.onclick = () => setHero(idx);
+                    sheetItem.innerHTML = `<img src="${img}" class="w-full h-full object-cover">`;
+                    sheet.appendChild(sheetItem);
+                }
+            });
+            document.getElementById('sheetImage').src = uploadedImages[0];
+        }
+
+        async function handleManualUpload(evt) {
+            const files = Array.from(evt.target.files);
+            if (!files.length) return;
+            logStatus(`Processing ${files.length} images...`);
+            const promises = files.map(file => new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            }));
+            const results = await Promise.all(promises);
+            uploadedImages = [...results, ...uploadedImages];
+            renderGalleries();
+            logStatus("Upload Complete", false);
+            setTimeout(() => document.getElementById('statusBox').classList.add('hidden'), 2000);
+        }
+
+        function updateSheet() {
+            // General
+            document.getElementById('sheetName').innerText = document.getElementById('inName').value;
+            document.getElementById('sheetPrice').innerText = '$' + document.getElementById('inPrice').value;
+            document.getElementById('sheetStock').innerText = document.getElementById('inStock').value;
+            document.getElementById('sheetDesc').innerText = document.getElementById('inDesc').value;
+            document.getElementById('sheetAgentDisplay').innerText = document.getElementById('inAgent').value.split('•')[0].trim();
+
+            // Advantages
+            document.getElementById('sheetFeat1').innerText = document.getElementById('inFeat1').value;
+            document.getElementById('sheetFeat2').innerText = document.getElementById('inFeat2').value;
+            document.getElementById('sheetFeat3').innerText = document.getElementById('inFeat3').value;
+            document.getElementById('sheetFeat4').innerText = document.getElementById('inFeat4').value;
+
+            // Specs
+            document.getElementById('sheetSpecL1').innerText = document.getElementById('inSpecL1').value;
+            document.getElementById('sheetSpecV1').innerText = document.getElementById('inSpecV1').value;
+            document.getElementById('sheetSpecL2').innerText = document.getElementById('inSpecL2').value;
+            document.getElementById('sheetSpecV2').innerText = document.getElementById('inSpecV2').value;
+            document.getElementById('sheetSpecL3').innerText = document.getElementById('inSpecL3').value;
+            document.getElementById('sheetSpecV3').innerText = document.getElementById('inSpecV3').value;
+            document.getElementById('sheetSpecL4').innerText = document.getElementById('inSpecL4').value;
+            document.getElementById('sheetSpecV4').innerText = document.getElementById('inSpecV4').value;
+        }
+
+        function showPrintAssistant() { document.getElementById('printAssistant').classList.remove('hidden'); }
+        function triggerFinalPrint() { document.getElementById('printAssistant').classList.add('hidden'); window.focus(); window.print(); }
+
+        function logStatus(text, showSpinner = true) {
+            const box = document.getElementById('statusBox');
+            const label = document.getElementById('statusText');
+            box.classList.remove('hidden');
+            label.innerText = text;
+            box.querySelector('.spinner').style.display = showSpinner ? 'block' : 'none';
+        }
+
+        async function exportPDFWithPicker() {
+            const btn = document.getElementById('pdfBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<span class="spinner"></span> Working...`;
+            btn.disabled = true;
+            logStatus("Capturing Sheet Content...");
+            const element = document.getElementById('sheet');
+            const filename = `BMT_Sheet_${document.getElementById('inStock').value}.pdf`;
+            const opt = {
+                margin: 0, filename: filename, image: { type: 'jpeg', quality: 1.0 },
+                html2canvas: { scale: 2, useCORS: true, letterRendering: true, allowTaint: true },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            try {
+                logStatus("Building PDF Document...");
+                const blob = await html2pdf().set(opt).from(element).toPdf().output('blob');
+                if ('showSaveFilePicker' in window) {
+                    logStatus("Waiting for folder selection...");
+                    const handle = await window.showSaveFilePicker({ suggestedName: filename, types: [{ description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } }] });
+                    const writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    logStatus("File Saved Successfully!", false);
+                } else {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a'); a.href = url; a.download = filename;
+                    document.body.appendChild(a); a.click();
+                    logStatus("Saved to Downloads", false);
+                }
+            } catch (err) { logStatus("Export Blocked", false); } finally {
+                btn.innerHTML = originalText; btn.disabled = false;
+                setTimeout(() => document.getElementById('statusBox').classList.add('hidden'), 3000);
+            }
+        }
+
+        renderGalleries();
+    </script>
+</body>
+</html>
