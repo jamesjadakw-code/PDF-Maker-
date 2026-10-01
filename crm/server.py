@@ -94,11 +94,21 @@ class Handler(SimpleHTTPRequestHandler):
                 draft = verify_draft(payload.get("id") or "", payload.get("brochure"))
                 return self._json(200, {"ok": True, "draft": draft})
             if path == "/api/marketplace/post":
-                draft = post_draft(payload.get("id") or "")
+                draft_id = payload.get("id") or ""
+                held = get_draft(draft_id)
+                crm_unit = _file_hidden_draft(held)
+                draft = post_draft(draft_id)
                 draft["website"]["sent"] = False
-                draft["website"]["note"] = (
-                    "Verified and queued for the website. Not sent to bigassmotors.com from this server."
-                )
+                if crm_unit:
+                    draft["website"]["crm"] = crm_unit
+                    draft["website"]["note"] = (
+                        "Hidden Draft on the CRM. Not on bigassmotors.com. "
+                        "Open the unit and choose List Now only after the photos and write-up check out."
+                    )
+                else:
+                    draft["website"]["note"] = (
+                        "Verified and queued for the website. Not sent to bigassmotors.com from this server."
+                    )
                 from crm.store import save_draft
                 save_draft(draft)
                 return self._json(200, {"ok": True, "draft": draft})
@@ -130,6 +140,19 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+
+def _file_hidden_draft(draft: dict) -> dict | None:
+    email = os.environ.get("BAM_CRM_EMAIL", "").strip()
+    password = os.environ.get("BAM_CRM_PASSWORD", "")
+    if not email or not password:
+        return None
+    if draft.get("status") != "verified":
+        raise PermissionError("Verify the brochure before filing it on the CRM.")
+    from crm.live_inventory import CRM_BASE, LiveInventory
+
+    base = os.environ.get("BAM_CRM_BASE", CRM_BASE)
+    return LiveInventory(email, password, base=base).create_hidden_draft(draft["listing"])
 
 
 def _hold(html: str, url: str) -> dict:

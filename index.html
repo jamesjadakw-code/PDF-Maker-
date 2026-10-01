@@ -134,7 +134,7 @@
     <p class="hint" id="fbMsg">Imports stay off the website until you verify the brochure.</p>
     <div id="queue"></div>
     <button class="ghost" id="fbVerify" type="button" disabled>Verify listing</button>
-    <button class="export" id="fbPost" type="button" disabled>Post to website</button>
+    <button class="export" id="fbPost" type="button" disabled>File hidden CRM draft</button>
   </div>
   <label>Page 1 title</label>
   <input id="inTitle" />
@@ -454,10 +454,13 @@ function showDraft(draft) {
     banner.textContent = "Pending verification. Photos and info are in the brochure. Nothing is posted on the website yet.";
   } else if (status === "verified") {
     banner.className = "no-print ok";
-    banner.textContent = "Verified. You can post this listing to the website.";
+    banner.textContent = "Verified. Filing it creates a hidden Draft on the CRM. It stays off the website until you List Now.";
   } else {
     banner.className = "no-print ok";
-    banner.textContent = "Posted to the website queue. " + ((draft.website && draft.website.note) || "");
+    const crm = draft.website && draft.website.crm;
+    banner.textContent = crm
+      ? "Hidden Draft " + (crm.stock || "") + " on the CRM. It is not on the website."
+      : "Posted to the website queue. " + ((draft.website && draft.website.note) || "");
   }
 }
 
@@ -538,7 +541,10 @@ document.getElementById("fbPost").addEventListener("click", async () => {
   try {
     const data = await api("/api/marketplace/post", { id: currentDraft.id });
     showDraft(data.draft);
-    document.getElementById("fbMsg").textContent = "Posted to the website queue.";
+    const crm = data.draft.website && data.draft.website.crm;
+    document.getElementById("fbMsg").textContent = crm
+      ? "Filed as a hidden Draft. Not on the website until you List Now on the unit."
+      : "Verified locally. Not sent to the website.";
     refreshQueue();
   } catch (err) {
     document.getElementById("fbMsg").textContent = err.message;

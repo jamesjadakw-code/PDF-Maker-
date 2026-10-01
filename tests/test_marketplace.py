@@ -7,7 +7,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from crm.marketplace import marketplace_url, parse_listing, to_brochure
+from crm.marketplace import machine_fields, marketplace_url, parse_listing, to_brochure
 from crm.server import Handler
 from crm import store
 from http.server import ThreadingHTTPServer
@@ -43,6 +43,17 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(len(brochure["photos"]), 7)
         self.assertEqual(len(brochure["specs"]), 26)
 
+    def test_machine_fields_match_the_crm_unit_form(self):
+        listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
+        fields = machine_fields(listing)
+        self.assertEqual(fields["year"], "2019")
+        self.assertEqual(fields["make"], "Ditch Witch")
+        self.assertEqual(fields["model"], "JT20")
+        self.assertEqual(fields["category"], "Directional Drills")
+        self.assertEqual(fields["hours"], "1840")
+        self.assertEqual(fields["price"], "128500")
+        self.assertEqual(fields["location"], "Jacksonville, FL")
+
 
 class QueueTests(unittest.TestCase):
     def setUp(self):
@@ -70,6 +81,9 @@ class ServerTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["BAM_DATA_DIR"] = self.tmp.name
+        os.environ.pop("BAM_CRM_EMAIL", None)
+        os.environ.pop("BAM_CRM_PASSWORD", None)
+        os.environ.pop("BAM_CRM_BASE", None)
         store.ROOT = Path(self.tmp.name)
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.port = self.httpd.server_address[1]
@@ -110,6 +124,92 @@ class ServerTests(unittest.TestCase):
         posted = self._post("/api/marketplace/post", {"id": draft_id})
         self.assertEqual(posted["draft"]["status"], "posted")
         self.assertFalse(posted["draft"]["website"].get("sent"))
+        self.assertNotIn("crm", posted["draft"]["website"])
+
+
+class FakeCrmTests(unittest.TestCase):
+    def setUp(self):
+        from http.server import BaseHTTPRequestHandler
+
+        class Fake(BaseHTTPRequestHandler):
+            def log_message(self, fmt, *args):
+                return
+
+            def do_GET(self):
+                body = '<input type="hidden" name="_csrf" value="abc123">'
+                if self.path.startswith("/inventory/login"):
+                    body += '<input type="password" name="password">'
+                if self.path.startswith("/inventory/unit.php"):
+                    body += "<option selected>Draft</option> BAM-10055 · Draft"
+                self._send(200, body)
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length") or 0)
+                raw = self.rfile.read(length).decode()
+                Fake.posts.append((self.path, raw))
+                if "list_now" in raw:
+                    self._send(500, "refused")
+                    return
+                if self.path.startswith("/inventory/login"):
+                    self._send(200, "Add from URL")
+                    return
+                self.send_response(302)
+                self.send_header("Location", "/inventory/unit.php?id=55")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def _send(self, status, body):
+                raw = body.encode()
+                self.send_response(status)
+                self.send_header("Content-Type", "text/html")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
+        Fake.posts = []
+        self.fake_cls = Fake
+        self.crm = ThreadingHTTPServer(("127.0.0.1", 0), Fake)
+        self.thread = threading.Thread(target=self.crm.serve_forever, daemon=True)
+        self.thread.start()
+        self.base = f"http://127.0.0.1:{self.crm.server_address[1]}"
+        self.tmp = tempfile.TemporaryDirectory()
+        os.environ["BAM_DATA_DIR"] = self.tmp.name
+        store.ROOT = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.crm.shutdown()
+        self.tmp.cleanup()
+        os.environ.pop("BAM_CRM_EMAIL", None)
+        os.environ.pop("BAM_CRM_PASSWORD", None)
+        os.environ.pop("BAM_CRM_BASE", None)
+
+    def test_verified_post_files_a_hidden_draft_and_does_not_list_it(self):
+        from crm.live_inventory import LiveInventory
+        from crm.server import _file_hidden_draft
+
+        listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
+        client = LiveInventory("sales@bigassmotors.com", "secret", base=self.base)
+        filed = client.create_hidden_draft(listing)
+        self.assertEqual(filed["status"], "Draft")
+        self.assertFalse(filed["onWebsite"])
+        self.assertIn("unit.php?id=55", filed["url"])
+        create = [body for path, body in self.fake_cls.posts if path.startswith("/inventory/add_url")]
+        self.assertEqual(len(create), 1)
+        self.assertIn("do=create", create[0])
+        self.assertNotIn("list_now", create[0])
+        self.assertEqual(create[0].count("photos%5B%5D="), 7)
+        self.assertIn("hours=1840", create[0])
+        self.assertIn("price=128500", create[0])
+
+        os.environ["BAM_CRM_EMAIL"] = "sales@bigassmotors.com"
+        os.environ["BAM_CRM_PASSWORD"] = "secret"
+        os.environ["BAM_CRM_BASE"] = self.base
+        draft = store.create_draft(listing, to_brochure(listing))
+        store.verify_draft(draft["id"])
+        held = store.get_draft(draft["id"])
+        crm_unit = _file_hidden_draft(held)
+        self.assertEqual(crm_unit["id"], "55")
+        self.assertTrue(all("list_now" not in body for _path, body in self.fake_cls.posts))
 
 
 if __name__ == "__main__":

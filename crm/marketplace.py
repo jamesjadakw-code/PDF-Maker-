@@ -96,6 +96,83 @@ def clean_title(title: str) -> str:
     return re.sub(r"\s+", " ", title).strip()
 
 
+_BRANDS = (
+    "Ditch Witch",
+    "John Deere",
+    "Caterpillar",
+    "CAT",
+    "Vermeer",
+    "Bobcat",
+    "Komatsu",
+    "Case",
+    "Kubota",
+    "Takeuchi",
+    "Yanmar",
+    "Hitachi",
+    "Volvo",
+    "Liebherr",
+    "JCB",
+    "Hyundai",
+    "Doosan",
+    "Develon",
+    "Terex",
+    "Wacker Neuson",
+    "International",
+    "Freightliner",
+)
+_CATEGORIES = (
+    (("directional", "horizontal drill"), "Directional Drills"),
+    (("trencher", "rock saw"), "Trenchers & Rock Saws"),
+    (("excavator",), "Excavators"),
+    (("backhoe",), "Backhoes"),
+    (("dozer", "bulldozer"), "Dozers"),
+    (("skid steer", "ctl"), "Skid Steers & CTLs"),
+    (("wheel loader",), "Wheel Loaders"),
+    (("drill",), "Drills"),
+)
+
+
+def machine_fields(listing: dict) -> dict:
+    """Split a Marketplace title into the CRM unit fields. Status stays Draft."""
+    title = clean_title(listing.get("title") or "")
+    year = str(listing.get("year") or "")
+    rest = title
+    if year and rest.startswith(year):
+        rest = rest[len(year):].strip()
+    make = ""
+    model = rest
+    lowered = rest.lower()
+    for brand in _BRANDS:
+        if lowered.startswith(brand.lower()):
+            make = brand
+            model = rest[len(brand):].strip(" -–")
+            break
+    model = re.split(
+        r"\s+(?:horizontal|directional|drill|trencher|excavator|with)\b",
+        model,
+        maxsplit=1,
+        flags=re.I,
+    )[0].strip()
+    blob = title.lower()
+    category = "Other Equipment"
+    for keys, name in _CATEGORIES:
+        if any(key in blob for key in keys):
+            category = name
+            break
+    digits = re.sub(r"[^\d]", "", listing.get("price") or "")
+    return {
+        "title": title,
+        "year": year,
+        "make": make,
+        "model": model or title,
+        "category": category,
+        "hours": str(listing.get("hours") or ""),
+        "price": digits,
+        "location": listing.get("location") or "",
+        "description": listing.get("description") or "",
+    }
+
+
 def money(value: str) -> str:
     if not value:
         return ""
