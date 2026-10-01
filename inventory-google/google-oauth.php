@@ -138,6 +138,16 @@ function bam_google_inject_button(string $html): string
         return $html;
     }
     $btn = bam_google_button_html();
+    $injected = preg_replace(
+        '/(<div class="side-motto">.*?<\/div>)/s',
+        '$1' . $btn,
+        $html,
+        1,
+        $count
+    );
+    if ($count > 0) {
+        return $injected;
+    }
     $injected = preg_replace('/<button([^>]*class="[^"]*btn-y[^"]*"[^>]*)>/i', $btn . '<button$1>', $html, 1, $count);
     if ($count > 0) {
         return $injected;
