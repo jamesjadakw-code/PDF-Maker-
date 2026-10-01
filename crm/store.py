@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 ROOT = Path(os.environ.get("BAM_DATA_DIR", Path(__file__).resolve().parent.parent / "data"))
 
@@ -29,13 +31,16 @@ def _path(draft_id: str) -> Path:
 
 def create_draft(listing: dict, brochure: dict) -> dict:
     draft_id = uuid.uuid4().hex[:12]
+    stored = dict(listing)
+    stored["askingPrice"] = stored.get("price") or ""
+    stored["price"] = ""
     draft = {
         "id": draft_id,
         "status": "pending_verification",
         "createdAt": _now(),
         "verifiedAt": None,
         "postedAt": None,
-        "listing": listing,
+        "listing": stored,
         "brochure": brochure,
         "website": None,
     }
@@ -76,8 +81,7 @@ def verify_draft(draft_id: str, brochure: dict | None = None) -> dict:
     if draft["status"] == "posted":
         raise ValueError("This listing is already posted.")
     if brochure:
-        draft["brochure"] = brochure
-        draft["listing"]["photos"] = brochure.get("photos") or draft["listing"].get("photos") or []
+        _apply_brochure(draft, brochure)
     draft["status"] = "verified"
     draft["verifiedAt"] = _now()
     if draft.get("brochure"):
@@ -90,6 +94,46 @@ def verify_draft(draft_id: str, brochure: dict | None = None) -> dict:
     return save_draft(draft)
 
 
+def save_verified_edits(draft_id: str, brochure: dict) -> dict:
+    """Keep price edits made after verification. Pending drafts stay locked."""
+    draft = get_draft(draft_id)
+    if draft["status"] == "posted":
+        raise ValueError("This listing is already posted.")
+    if draft["status"] != "verified":
+        raise PermissionError("Verify the brochure before editing the price.")
+    _apply_brochure(draft, brochure)
+    draft["listing"]["location"] = ""
+    draft["listing"]["sourceUrl"] = ""
+    return save_draft(draft)
+
+
+_SAVED_PHOTO = re.compile(r"/api/marketplace/photo/[a-f0-9]{12}/\d{1,2}\.(jpg|png|gif|webp)")
+
+
+def _saved_photo(src: str) -> bool:
+    path = urlparse(src).path if "://" in src else src.split("?", 1)[0]
+    return bool(_SAVED_PHOTO.fullmatch(path))
+
+
+def _apply_brochure(draft: dict, brochure: dict) -> None:
+    """Keep the Facebook photo links for the CRM. The sheet uses the saved files."""
+    from crm.marketplace import edited_price
+
+    sources = list((draft.get("listing") or {}).get("photos") or [])
+    incoming = list(brochure.get("photos") or [])
+    merged = []
+    for index, src in enumerate(incoming):
+        src = str(src or "")
+        if not src or src.startswith("data:image/svg") or _saved_photo(src):
+            if index < len(sources):
+                merged.append(sources[index])
+            continue
+        merged.append(src)
+    draft["brochure"] = brochure
+    draft["listing"]["photos"] = merged or sources
+    draft["listing"]["price"] = edited_price(brochure)
+
+
 def post_draft(draft_id: str) -> dict:
     draft = get_draft(draft_id)
     if draft["status"] != "verified":
@@ -97,15 +141,15 @@ def post_draft(draft_id: str) -> dict:
     listing = draft["listing"]
     draft["website"] = {
         "title": listing.get("title"),
-        "price": listing.get("price"),
-        "location": listing.get("location"),
+        "price": listing.get("price") or "",
+        "location": "",
         "description": listing.get("description"),
         "year": listing.get("year"),
         "hours": listing.get("hours"),
         "condition": listing.get("condition"),
         "photos": listing.get("photos") or [],
-        "sourceUrl": listing.get("sourceUrl"),
-        "stock": f"FB-{(listing.get('itemId') or draft_id)[-6:]}",
+        "sourceUrl": "",
+        "stock": "",
     }
     draft["status"] = "posted"
     draft["postedAt"] = _now()

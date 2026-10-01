@@ -134,7 +134,7 @@
     <p class="hint" id="fbMsg">Imports stay off the website until you verify the brochure.</p>
     <div id="queue"></div>
     <button class="ghost" id="fbVerify" type="button" disabled>Verify listing</button>
-    <button class="export" id="fbPost" type="button" disabled>Post to website</button>
+    <button class="export" id="fbPost" type="button" disabled>File hidden CRM draft</button>
   </div>
   <label>Page 1 title</label>
   <input id="inTitle" />
@@ -154,7 +154,7 @@
       <textarea id="inInc" rows="8"></textarea>
     </div>
   </div>
-  <label>Price bar</label>
+  <label>Price bar <span class="hint" id="priceHint">Locked until verification. Then edit the selling price.</span></label>
   <input id="inPrice" />
   <label>Page 2 title</label>
   <input id="inP2" />
@@ -322,9 +322,12 @@ function render() {
   document.getElementById("outWeb").textContent = document.getElementById("inWeb").value;
   bullets("inHigh", document.getElementById("outHigh"));
   bullets("inInc", document.getElementById("outInc"));
+  const editedPrice = (document.getElementById("inPrice").value.match(/\$[\d,]+/) || [""])[0];
   const specs = lines("inSpecs").map(row => {
     const i = row.indexOf("|");
-    return i < 0 ? [row, ""] : [row.slice(0, i).trim(), row.slice(i + 1).trim()];
+    const pair = i < 0 ? [row, ""] : [row.slice(0, i).trim(), row.slice(i + 1).trim()];
+    if (pair[0].toLowerCase() === "price" && editedPrice) pair[1] = editedPrice;
+    return pair;
   });
   document.getElementById("outSpecs").innerHTML = specs.map(([l, v]) =>
     `<div class="srow"><b>${l.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</b><span>${v.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</span></div>`
@@ -368,7 +371,7 @@ function setField(id, value) {
 function collectPhotos() {
   return [...document.querySelectorAll("#sheet .frame img")]
     .map(img => img.getAttribute("src") || "")
-    .filter(src => src && !src.startsWith("data:image/svg"));
+    .map(src => (src.startsWith("data:image/svg") ? "" : src));
 }
 
 function currentBrochure() {
@@ -411,7 +414,7 @@ function applyBrochure(brochure) {
   render();
   const photos = brochure.photos || [];
   ["ph-p1a", "ph-p1b", "ph-p2a", "ph-p2b", "ph-p2c"].forEach((id, index) => {
-    document.getElementById(id).src = photos[index] || EMPTY_PHOTO;
+    placePhoto(document.getElementById(id), photos[index]);
   });
   document.querySelectorAll(".extra-page").forEach(node => node.remove());
   const rest = photos.slice(5);
@@ -429,7 +432,10 @@ function applyBrochure(brochure) {
     chunk.forEach(src => {
       const frame = document.createElement("div");
       frame.className = "frame";
-      frame.innerHTML = `<img src="${esc(src)}" alt="">`;
+      const img = document.createElement("img");
+      img.alt = "";
+      placePhoto(img, src);
+      frame.appendChild(img);
       grid.appendChild(frame);
     });
     page.appendChild(grid);
@@ -449,15 +455,24 @@ function showDraft(draft) {
   const status = draft.status;
   document.getElementById("fbVerify").disabled = status !== "pending_verification";
   document.getElementById("fbPost").disabled = status !== "verified";
+  const price = document.getElementById("inPrice");
+  const priceHint = document.getElementById("priceHint");
+  price.readOnly = status === "pending_verification";
   if (status === "pending_verification") {
     banner.className = "no-print";
-    banner.textContent = "Pending verification. Photos and info are in the brochure. Nothing is posted on the website yet.";
+    banner.textContent = "Pending verification. Location, the listing URL, and the source are off this draft. Edit the price after you verify.";
+    priceHint.textContent = "Locked until verification.";
   } else if (status === "verified") {
     banner.className = "no-print ok";
-    banner.textContent = "Verified. You can post this listing to the website.";
+    banner.textContent = "Verified. Edit the price, then file the hidden draft. It stays off the website until you List Now.";
+    priceHint.textContent = "Edit the selling price before filing.";
+    price.focus();
   } else {
     banner.className = "no-print ok";
-    banner.textContent = "Posted to the website queue. " + ((draft.website && draft.website.note) || "");
+    const crm = draft.website && draft.website.crm;
+    banner.textContent = crm
+      ? "Hidden Draft " + (crm.stock || "") + " on the CRM. It is not on the website."
+      : "Posted to the website queue. " + ((draft.website && draft.website.note) || "");
   }
 }
 
@@ -492,13 +507,34 @@ async function refreshQueue() {
   }
 }
 
+function placePhoto(img, src) {
+  img.onerror = () => {
+    img.onerror = null;
+    img.src = EMPTY_PHOTO;
+  };
+  img.src = src || EMPTY_PHOTO;
+}
+
+function intakeNote(draft) {
+  const photos = (draft.listing && draft.listing.photos || []).length;
+  const saved = ((draft.brochure && draft.brochure.photos) || []).filter(src => String(src).indexOf("/api/marketplace/photo/") === 0).length;
+  const specs = (draft.listing && draft.listing.oemSpecs || []).length;
+  const specNote = specs
+    ? `${specs} specs filled from a spec search.`
+    : "No published spec sheet was found.";
+  if (saved) {
+    return `${saved} photos saved on the brochure. The first two are on page 1, the next three on page 2, and the rest on the following pages. ${specNote}`;
+  }
+  return `${photos} photo links saved. Facebook did not send the image files, so the frames are empty. ${specNote}`;
+}
+
 document.getElementById("fbScrape").addEventListener("click", async () => {
   const msg = document.getElementById("fbMsg");
   msg.textContent = "Reading the Marketplace listing…";
   try {
     const data = await api("/api/marketplace/scrape", { url: document.getElementById("fbUrl").value });
     showDraft(data.draft);
-    msg.textContent = `${(data.draft.listing.photos || []).length} photos extracted. Waiting for verification.`;
+    msg.textContent = intakeNote(data.draft);
     refreshQueue();
   } catch (err) {
     msg.textContent = err.message;
@@ -514,7 +550,7 @@ document.getElementById("fbParse").addEventListener("click", async () => {
       html: document.getElementById("fbHtml").value
     });
     showDraft(data.draft);
-    msg.textContent = `${(data.draft.listing.photos || []).length} photos extracted. Waiting for verification.`;
+    msg.textContent = intakeNote(data.draft);
     refreshQueue();
   } catch (err) {
     msg.textContent = err.message;
@@ -526,7 +562,7 @@ document.getElementById("fbVerify").addEventListener("click", async () => {
   try {
     const data = await api("/api/marketplace/verify", { id: currentDraft.id, brochure: currentBrochure() });
     showDraft(data.draft);
-    document.getElementById("fbMsg").textContent = "Verified. It is still not on the website until you post it.";
+    document.getElementById("fbMsg").textContent = "Verified. Edit the price, then file the hidden draft.";
     refreshQueue();
   } catch (err) {
     document.getElementById("fbMsg").textContent = err.message;
@@ -536,9 +572,12 @@ document.getElementById("fbVerify").addEventListener("click", async () => {
 document.getElementById("fbPost").addEventListener("click", async () => {
   if (!currentDraft) return;
   try {
-    const data = await api("/api/marketplace/post", { id: currentDraft.id });
+    const data = await api("/api/marketplace/post", { id: currentDraft.id, brochure: currentBrochure() });
     showDraft(data.draft);
-    document.getElementById("fbMsg").textContent = "Posted to the website queue.";
+    const crm = data.draft.website && data.draft.website.crm;
+    document.getElementById("fbMsg").textContent = crm
+      ? "Filed as a hidden Draft. Not on the website until you List Now on the unit."
+      : "Verified locally. Not sent to the website.";
     refreshQueue();
   } catch (err) {
     document.getElementById("fbMsg").textContent = err.message;
