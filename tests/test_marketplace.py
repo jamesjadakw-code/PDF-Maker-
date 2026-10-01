@@ -1,0 +1,116 @@
+import json
+import os
+import tempfile
+import threading
+import unittest
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+from crm.marketplace import marketplace_url, parse_listing, to_brochure
+from crm.server import Handler
+from crm import store
+from http.server import ThreadingHTTPServer
+
+
+FIXTURE = Path(__file__).parent / "fixtures" / "marketplace_item.html"
+ITEM_URL = "https://www.facebook.com/marketplace/item/123456789012345/"
+
+
+class ParseTests(unittest.TestCase):
+    def test_rejects_non_marketplace_urls(self):
+        with self.assertRaises(ValueError):
+            marketplace_url("https://example.com/marketplace/item/1")
+        with self.assertRaises(ValueError):
+            marketplace_url("https://www.facebook.com/profile.php")
+
+    def test_extracts_every_listing_photo_and_the_facts(self):
+        listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
+        self.assertEqual(listing["title"], "2019 Ditch Witch JT20 Horizontal Drill")
+        self.assertEqual(listing["price"], "$128,500")
+        self.assertEqual(listing["location"], "Jacksonville, FL")
+        self.assertEqual(listing["hours"], "1840")
+        self.assertEqual(listing["year"], "2019")
+        self.assertEqual(len(listing["photos"]), 7)
+        self.assertTrue(all("emoji" not in url for url in listing["photos"]))
+        self.assertIn("photo6.jpg", listing["photos"][-1])
+
+    def test_brochure_stays_unpublished(self):
+        listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
+        brochure = to_brochure(listing, pending=True)
+        self.assertIn("Pending verification", brochure["status"])
+        self.assertIn("HELD FOR REVIEW", brochure["ready"])
+        self.assertEqual(len(brochure["photos"]), 7)
+        self.assertEqual(len(brochure["specs"]), 26)
+
+
+class QueueTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        os.environ["BAM_DATA_DIR"] = self.tmp.name
+        store.ROOT = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_post_is_blocked_until_verified(self):
+        listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
+        draft = store.create_draft(listing, to_brochure(listing))
+        with self.assertRaises(PermissionError):
+            store.post_draft(draft["id"])
+        verified = store.verify_draft(draft["id"])
+        self.assertEqual(verified["status"], "verified")
+        posted = store.post_draft(draft["id"])
+        self.assertEqual(posted["status"], "posted")
+        self.assertEqual(posted["website"]["price"], "$128,500")
+        self.assertEqual(len(posted["website"]["photos"]), 7)
+
+
+class ServerTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        os.environ["BAM_DATA_DIR"] = self.tmp.name
+        store.ROOT = Path(self.tmp.name)
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.port = self.httpd.server_address[1]
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread.start()
+
+    def tearDown(self):
+        self.httpd.shutdown()
+        self.tmp.cleanup()
+
+    def _post(self, path, payload):
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{self.port}{path}",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as response:
+            return json.loads(response.read().decode())
+
+    def test_api_holds_the_listing_for_verification(self):
+        created = self._post("/api/marketplace/parse", {
+            "url": ITEM_URL,
+            "html": FIXTURE.read_text(encoding="utf-8"),
+        })
+        self.assertTrue(created["ok"])
+        self.assertEqual(created["draft"]["status"], "pending_verification")
+        draft_id = created["draft"]["id"]
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{self.port}/api/marketplace/post",
+            data=json.dumps({"id": draft_id}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            urllib.request.urlopen(req)
+        self.assertEqual(caught.exception.code, 409)
+        verified = self._post("/api/marketplace/verify", {"id": draft_id})
+        self.assertEqual(verified["draft"]["status"], "verified")
+        posted = self._post("/api/marketplace/post", {"id": draft_id})
+        self.assertEqual(posted["draft"]["status"], "posted")
+        self.assertFalse(posted["draft"]["website"].get("sent"))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -37,6 +37,20 @@
     width:100%; margin-top:8px; background:transparent; color:#fff; border:1px solid #444;
     border-radius:6px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; padding:10px; cursor:pointer; font-size:11px;
   }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .mp { border:1px solid #333; border-radius:8px; padding:10px; margin-bottom:14px; }
+  .mp h2 { font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--gold); margin:0 0 8px; }
+  #queue { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+  .qitem { text-align:left; background:#1c1c1c; color:#fff; border:1px solid #333; border-radius:4px; padding:6px 8px; cursor:pointer; font-size:11px; }
+  .qitem b { display:block; }
+  .qitem em { color:var(--gold); font-style:normal; font-size:10px; }
+  #verifyBanner {
+    width:612pt; margin:0 auto 12px; background:#111; color:#fff; border:2pt solid var(--gold);
+    padding:8px 12px; font-size:12px; font-weight:700;
+  }
+  #verifyBanner.ok { background:#143018; }
+  .photo-grid { position:absolute; left:36pt; top:210pt; width:540pt; display:grid; grid-template-columns:1fr 1fr 1fr; gap:10pt; }
+  .photo-grid .frame { position:relative; left:auto; top:auto; width:auto; height:150pt; }
   .hint { font-size:10px; color:#888; line-height:1.4; margin-top:8px; }
   main { flex:1; overflow:auto; padding:28px 20px 60px; }
   .stack { width:612pt; margin:0 auto; display:flex; flex-direction:column; gap:22px; }
@@ -108,7 +122,20 @@
 <body>
 <aside class="no-print">
   <h1>BIG ASS MOTORS</h1>
-  <div class="sub">Brochure maker</div>
+  <div class="sub">CRM brochure intake</div>
+  <div class="mp">
+    <h2>Facebook Marketplace</h2>
+    <label>Listing URL</label>
+    <input id="fbUrl" placeholder="https://www.facebook.com/marketplace/item/…" />
+    <button class="export" id="fbScrape" type="button">Extract photos &amp; info</button>
+    <label>If Facebook blocks the fetch, paste the page HTML</label>
+    <textarea id="fbHtml" rows="3" placeholder="View source of the Marketplace item, then paste it here"></textarea>
+    <button class="ghost" id="fbParse" type="button">Extract from pasted page</button>
+    <p class="hint" id="fbMsg">Imports stay off the website until you verify the brochure.</p>
+    <div id="queue"></div>
+    <button class="ghost" id="fbVerify" type="button" disabled>Verify listing</button>
+    <button class="export" id="fbPost" type="button" disabled>Post to website</button>
+  </div>
   <label>Page 1 title</label>
   <input id="inTitle" />
   <label>Subtitle</label>
@@ -151,6 +178,7 @@
 </aside>
 
 <main>
+  <div id="verifyBanner" class="no-print" hidden>Pending verification. This listing is not on the website.</div>
   <div class="stack" id="sheet">
     <section class="page" id="page1">
       <img class="logo" src="assets/logo.jpg" alt="Big Ass Motors" />
@@ -319,12 +347,205 @@ document.getElementById("photoPick").addEventListener("change", (e) => {
   reader.readAsDataURL(file);
   e.target.value = "";
 });
-document.querySelectorAll(".frame img").forEach(img => {
-  img.addEventListener("click", () => {
-    pickTarget = img;
-    document.getElementById("photoPick").click();
-  });
+document.getElementById("sheet").addEventListener("click", (event) => {
+  const img = event.target.closest(".frame img");
+  if (!img) return;
+  pickTarget = img;
+  document.getElementById("photoPick").click();
 });
+
+const EMPTY_PHOTO = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="100%" height="100%" fill="#eeeeee"/><text x="50%" y="50%" fill="#888" font-family="Arial" font-size="22" text-anchor="middle">No photo</text></svg>');
+let currentDraft = null;
+
+function esc(value) {
+  return String(value ?? "").replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+function setField(id, value) {
+  document.getElementById(id).value = value ?? "";
+}
+
+function collectPhotos() {
+  return [...document.querySelectorAll("#sheet .frame img")]
+    .map(img => img.getAttribute("src") || "")
+    .filter(src => src && !src.startsWith("data:image/svg"));
+}
+
+function currentBrochure() {
+  return {
+    title: document.getElementById("inTitle").value,
+    subtitle: document.getElementById("inSub").value,
+    status: document.getElementById("inStatus").value,
+    description: document.getElementById("inDesc").value,
+    highlights: document.getElementById("inHigh").value.split("\n").map(s => s.trim()).filter(Boolean),
+    included: document.getElementById("inInc").value.split("\n").map(s => s.trim()).filter(Boolean),
+    priceLine: document.getElementById("inPrice").value,
+    page2Title: document.getElementById("inP2").value,
+    specHead: document.getElementById("inSpecHead").value,
+    specs: document.getElementById("inSpecs").value.split("\n").map(s => s.trim()).filter(Boolean),
+    condition: document.getElementById("inCond").value,
+    ready: document.getElementById("inReady").value,
+    lock: document.getElementById("inLock").value,
+    phone: document.getElementById("inPhone").value,
+    web: document.getElementById("inWeb").value,
+    photos: collectPhotos()
+  };
+}
+
+function applyBrochure(brochure) {
+  setField("inTitle", brochure.title);
+  setField("inSub", brochure.subtitle);
+  setField("inStatus", brochure.status);
+  setField("inDesc", brochure.description);
+  setField("inHigh", (brochure.highlights || []).join("\n"));
+  setField("inInc", (brochure.included || []).join("\n"));
+  setField("inPrice", brochure.priceLine);
+  setField("inP2", brochure.page2Title);
+  setField("inSpecHead", brochure.specHead);
+  setField("inSpecs", (brochure.specs || []).join("\n"));
+  setField("inCond", brochure.condition);
+  setField("inReady", brochure.ready);
+  setField("inLock", brochure.lock);
+  setField("inPhone", brochure.phone);
+  setField("inWeb", brochure.web);
+  render();
+  const photos = brochure.photos || [];
+  ["ph-p1a", "ph-p1b", "ph-p2a", "ph-p2b", "ph-p2c"].forEach((id, index) => {
+    document.getElementById(id).src = photos[index] || EMPTY_PHOTO;
+  });
+  document.querySelectorAll(".extra-page").forEach(node => node.remove());
+  const rest = photos.slice(5);
+  for (let start = 0; start < rest.length; start += 6) {
+    const chunk = rest.slice(start, start + 6);
+    const page = document.createElement("section");
+    page.className = "page extra-page";
+    const pageNo = 3 + Math.floor(start / 6);
+    const header = document.getElementById("page1").querySelector(".brand").parentElement
+      ? document.getElementById("page1").innerHTML.match(/[\s\S]*?<div class="rule" style="top:147.6pt"><\/div>/)[0]
+      : "";
+    page.innerHTML = header + `<div class="center" style="top:163pt;font-size:13pt;font-weight:700;">All listing photos</div><div class="rule" style="top:190.1pt"></div>`;
+    const grid = document.createElement("div");
+    grid.className = "photo-grid";
+    chunk.forEach(src => {
+      const frame = document.createElement("div");
+      frame.className = "frame";
+      frame.innerHTML = `<img src="${esc(src)}" alt="">`;
+      grid.appendChild(frame);
+    });
+    page.appendChild(grid);
+    const footer = document.createElement("footer");
+    footer.className = "footer";
+    footer.innerHTML = `<span>Big Ass Motors &nbsp;•&nbsp; Jacksonville, FL &nbsp;•&nbsp; US &amp; MX Coverage</span><span>Page ${pageNo}</span><span>www.bigassmotors.com &nbsp;•&nbsp; +1-904-767-5232</span>`;
+    page.appendChild(footer);
+    document.getElementById("sheet").appendChild(page);
+  }
+}
+
+function showDraft(draft) {
+  currentDraft = draft;
+  applyBrochure(draft.brochure || {});
+  const banner = document.getElementById("verifyBanner");
+  banner.hidden = false;
+  const status = draft.status;
+  document.getElementById("fbVerify").disabled = status !== "pending_verification";
+  document.getElementById("fbPost").disabled = status !== "verified";
+  if (status === "pending_verification") {
+    banner.className = "no-print";
+    banner.textContent = "Pending verification. Photos and info are in the brochure. Nothing is posted on the website yet.";
+  } else if (status === "verified") {
+    banner.className = "no-print ok";
+    banner.textContent = "Verified. You can post this listing to the website.";
+  } else {
+    banner.className = "no-print ok";
+    banner.textContent = "Posted to the website queue. " + ((draft.website && draft.website.note) || "");
+  }
+}
+
+async function api(path, payload) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({ ok: false, error: "Bad response" }));
+  if (!response.ok || !data.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+
+async function refreshQueue() {
+  const box = document.getElementById("queue");
+  try {
+    const response = await fetch("/api/marketplace/queue");
+    const data = await response.json();
+    box.innerHTML = (data.drafts || []).map(row =>
+      `<button type="button" class="qitem" data-id="${esc(row.id)}"><b>${esc(row.title || "Untitled")}</b><em>${esc(row.status)} · ${row.photos || 0} photos · ${esc(row.price || "")}</em></button>`
+    ).join("");
+    box.querySelectorAll(".qitem").forEach(button => {
+      button.addEventListener("click", async () => {
+        const response = await fetch("/api/marketplace/draft/" + button.dataset.id);
+        const data = await response.json();
+        if (data.ok) showDraft(data.draft);
+      });
+    });
+  } catch (err) {
+    box.innerHTML = "";
+  }
+}
+
+document.getElementById("fbScrape").addEventListener("click", async () => {
+  const msg = document.getElementById("fbMsg");
+  msg.textContent = "Reading the Marketplace listing…";
+  try {
+    const data = await api("/api/marketplace/scrape", { url: document.getElementById("fbUrl").value });
+    showDraft(data.draft);
+    msg.textContent = `${(data.draft.listing.photos || []).length} photos extracted. Waiting for verification.`;
+    refreshQueue();
+  } catch (err) {
+    msg.textContent = err.message;
+  }
+});
+
+document.getElementById("fbParse").addEventListener("click", async () => {
+  const msg = document.getElementById("fbMsg");
+  msg.textContent = "Reading the pasted listing…";
+  try {
+    const data = await api("/api/marketplace/parse", {
+      url: document.getElementById("fbUrl").value || "https://www.facebook.com/marketplace/item/0/",
+      html: document.getElementById("fbHtml").value
+    });
+    showDraft(data.draft);
+    msg.textContent = `${(data.draft.listing.photos || []).length} photos extracted. Waiting for verification.`;
+    refreshQueue();
+  } catch (err) {
+    msg.textContent = err.message;
+  }
+});
+
+document.getElementById("fbVerify").addEventListener("click", async () => {
+  if (!currentDraft) return;
+  try {
+    const data = await api("/api/marketplace/verify", { id: currentDraft.id, brochure: currentBrochure() });
+    showDraft(data.draft);
+    document.getElementById("fbMsg").textContent = "Verified. It is still not on the website until you post it.";
+    refreshQueue();
+  } catch (err) {
+    document.getElementById("fbMsg").textContent = err.message;
+  }
+});
+
+document.getElementById("fbPost").addEventListener("click", async () => {
+  if (!currentDraft) return;
+  try {
+    const data = await api("/api/marketplace/post", { id: currentDraft.id });
+    showDraft(data.draft);
+    document.getElementById("fbMsg").textContent = "Posted to the website queue.";
+    refreshQueue();
+  } catch (err) {
+    document.getElementById("fbMsg").textContent = err.message;
+  }
+});
+
+refreshQueue();
 
 document.getElementById("pdfBtn").addEventListener("click", async () => {
   const btn = document.getElementById("pdfBtn");
