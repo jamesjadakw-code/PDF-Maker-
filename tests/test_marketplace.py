@@ -6,9 +6,12 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest.mock import patch
+from urllib.parse import quote
 
 from crm.marketplace import machine_fields, marketplace_url, parse_listing, to_brochure
 from crm.server import Handler
+from crm.specs import lookup_specs, parse_spec_text, public_https, specs_missing
 from crm import store
 from http.server import ThreadingHTTPServer
 
@@ -59,6 +62,12 @@ class ParseTests(unittest.TestCase):
         self.assertNotIn("City", labels)
         self.assertNotIn("Listing ID", labels)
         self.assertEqual(len(brochure["specs"]), 26)
+        listing["oemSpecs"] = [("Thrust force", "17,000 lb"), ("Pullback force", "20,000 lb")]
+        filled = to_brochure(listing, pending=True)
+        self.assertIn("Thrust force | 17,000 lb", filled["specs"])
+        self.assertIn("Pullback force | 20,000 lb", filled["specs"])
+        self.assertTrue(any(row.strip() == "Price |" for row in filled["specs"]))
+        self.assertIn("published figures", filled["specHead"])
 
     def test_machine_fields_match_the_crm_unit_form(self):
         listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
@@ -115,12 +124,15 @@ class ServerTests(unittest.TestCase):
         os.environ.pop("BAM_CRM_PASSWORD", None)
         os.environ.pop("BAM_CRM_BASE", None)
         store.ROOT = Path(self.tmp.name)
+        self.specs_patch = patch("crm.server.lookup_specs", return_value=[])
+        self.specs_patch.start()
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.port = self.httpd.server_address[1]
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
 
     def tearDown(self):
+        self.specs_patch.stop()
         self.httpd.shutdown()
         self.tmp.cleanup()
 
@@ -155,6 +167,51 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(posted["draft"]["status"], "posted")
         self.assertFalse(posted["draft"]["website"].get("sent"))
         self.assertNotIn("crm", posted["draft"]["website"])
+
+
+class SpecSearchTests(unittest.TestCase):
+    def test_spec_sheet_text_becomes_rows(self):
+        text = (
+            "Length\n207 in\n5.26 m\n"
+            "Thrust force\n17,000 lb\n75.6 kN\n"
+            "Pullback force\n20,000 lb\n89 kN\n"
+            "Engine\nDeutz TD2.9L4\n"
+            "Fuel\nDiesel\n"
+        )
+        rows = dict(parse_spec_text(text))
+        self.assertEqual(rows["Length"], "207 in")
+        self.assertEqual(rows["Thrust force"], "17,000 lb")
+        self.assertEqual(rows["Pullback force"], "20,000 lb")
+        self.assertEqual(rows["Engine"], "Deutz TD2.9L4")
+        self.assertEqual(rows["Fuel"], "Diesel")
+
+    def test_missing_specs_search_the_make_and_model(self):
+        listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
+        self.assertTrue(specs_missing(listing))
+        self.assertFalse(public_https("http://example.com/specs.pdf"))
+        self.assertFalse(public_https("https://127.0.0.1/specs.pdf"))
+
+        class FakeFetcher:
+            def get(self, url):
+                self.query = url
+                link = quote("https://example.com/JT20specs.pdf", safe="")
+                return f'<a href="/l/?uddg={link}">spec</a>'.encode()
+
+            def read(self, url):
+                self.read_url = url
+                return (
+                    "Thrust force\n17,000 lb\n75.6 kN\n"
+                    "Pullback force\n20,000 lb\n89 kN\n"
+                    "Spindle torque, max\n2,200 ft·lb\n2980 N·m\n"
+                    "Fuel\nDiesel\n"
+                )
+
+        fetcher = FakeFetcher()
+        rows = lookup_specs(listing, fetcher=fetcher)
+        self.assertIn("JT20", fetcher.query)
+        self.assertIn("JT20specs.pdf", fetcher.read_url)
+        self.assertEqual(dict(rows)["Thrust force"], "17,000 lb")
+        self.assertGreaterEqual(len(rows), 4)
 
 
 class FakeCrmTests(unittest.TestCase):

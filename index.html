@@ -504,13 +504,22 @@ async function refreshQueue() {
   }
 }
 
+function intakeNote(draft) {
+  const photos = (draft.listing && draft.listing.photos || []).length;
+  const specs = (draft.listing && draft.listing.oemSpecs || []).length;
+  if (specs) {
+    return `${photos} photos extracted. ${specs} specs filled from a spec search. Waiting for verification.`;
+  }
+  return `${photos} photos extracted. No published spec sheet was found. Waiting for verification.`;
+}
+
 document.getElementById("fbScrape").addEventListener("click", async () => {
   const msg = document.getElementById("fbMsg");
   msg.textContent = "Reading the Marketplace listing…";
   try {
     const data = await api("/api/marketplace/scrape", { url: document.getElementById("fbUrl").value });
     showDraft(data.draft);
-    msg.textContent = `${(data.draft.listing.photos || []).length} photos extracted. Waiting for verification.`;
+    msg.textContent = intakeNote(data.draft);
     refreshQueue();
   } catch (err) {
     msg.textContent = err.message;
@@ -526,7 +535,7 @@ document.getElementById("fbParse").addEventListener("click", async () => {
       html: document.getElementById("fbHtml").value
     });
     showDraft(data.draft);
-    msg.textContent = `${(data.draft.listing.photos || []).length} photos extracted. Waiting for verification.`;
+    msg.textContent = intakeNote(data.draft);
     refreshQueue();
   } catch (err) {
     msg.textContent = err.message;

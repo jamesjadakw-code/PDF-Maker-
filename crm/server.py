@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, build_opener
 
 from crm.marketplace import marketplace_url, parse_listing, to_brochure
+from crm.specs import lookup_specs, specs_missing
 from crm.store import create_draft, get_draft, list_drafts, post_draft, save_verified_edits, verify_draft
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -161,6 +162,11 @@ def _file_hidden_draft(draft: dict) -> dict | None:
 
 def _hold(html: str, url: str) -> dict:
     listing = parse_listing(html, url)
+    if specs_missing(listing):
+        try:
+            listing["oemSpecs"] = lookup_specs(listing)
+        except (OSError, ValueError):
+            listing["oemSpecs"] = []
     brochure = to_brochure(listing, pending=True)
     return create_draft(listing, brochure)
 

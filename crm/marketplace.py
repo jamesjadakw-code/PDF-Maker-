@@ -323,28 +323,18 @@ def to_brochure(listing: dict, pending: bool = True) -> dict:
     description = re.sub(r"\s*\n\s*", " ", raw_description).strip()
     gate = "Pending verification — not on the website" if pending else "Verified — edit the price"
     status_bits = [condition, f"{hours} Hours" if hours else "", gate]
+    oem = [
+        (str(label).strip(), str(value).strip())
+        for label, value in (listing.get("oemSpecs") or [])
+        if str(label).strip() and str(value).strip()
+    ][:18]
     specs = [
         ("Year", listing.get("year") or "—"),
-        ("Title", title),
         ("Hours", f"{hours}" if hours else "—"),
         ("Condition", condition),
         ("Price", ""),
-        ("Photos", str(len(listing.get("photos") or []))),
-        ("Status", "Pending verification" if pending else "Verified"),
-        ("Website", "Held until verified" if pending else "Ready to post"),
-        ("Phone", "+1-904-767-5232"),
-        ("Email", "sales@bigassmotors.com"),
-        ("Stock", "—"),
         ("Make / model", title),
-        ("Currency", "USD"),
-        ("Seller contact", "sales@bigassmotors.com"),
-        ("Freight", "US & MX — quote on request"),
-        ("Inspection", "Buyer verifies before deposit"),
-        ("As-is", "Sold as-is"),
-        ("Brochure", "BAM letter"),
-        ("Queue", "CRM verification"),
-        ("Mobile", "+1-904-729-1051"),
-        ("Web", "www.bigassmotors.com"),
+        *oem,
     ]
     while len(specs) < 26:
         specs.append(("", ""))
@@ -357,7 +347,7 @@ def to_brochure(listing: dict, pending: bool = True) -> dict:
         "included": included,
         "priceLine": "PRICE: ",
         "page2Title": title,
-        "specHead": "TECHNICAL SPECIFICATIONS",
+        "specHead": "TECHNICAL SPECIFICATIONS" + (" — published figures" if oem else ""),
         "specs": [f"{label} | {value}" for label, value in specs[:26]],
         "condition": (
             f"{gate}. Edit the price after verification. "
