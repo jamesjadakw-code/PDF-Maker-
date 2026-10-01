@@ -450,6 +450,7 @@ function applyBrochure(brochure) {
 function showDraft(draft) {
   currentDraft = draft;
   applyBrochure(draft.brochure || {});
+  document.getElementById("fbMsg").textContent = intakeNote(draft);
   const banner = document.getElementById("verifyBanner");
   banner.hidden = false;
   const status = draft.status;
