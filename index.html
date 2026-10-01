@@ -371,7 +371,7 @@ function setField(id, value) {
 function collectPhotos() {
   return [...document.querySelectorAll("#sheet .frame img")]
     .map(img => img.getAttribute("src") || "")
-    .filter(src => src && !src.startsWith("data:image/svg"));
+    .map(src => (src.startsWith("data:image/svg") ? "" : src));
 }
 
 function currentBrochure() {
@@ -414,7 +414,7 @@ function applyBrochure(brochure) {
   render();
   const photos = brochure.photos || [];
   ["ph-p1a", "ph-p1b", "ph-p2a", "ph-p2b", "ph-p2c"].forEach((id, index) => {
-    document.getElementById(id).src = photos[index] || EMPTY_PHOTO;
+    placePhoto(document.getElementById(id), photos[index]);
   });
   document.querySelectorAll(".extra-page").forEach(node => node.remove());
   const rest = photos.slice(5);
@@ -432,7 +432,10 @@ function applyBrochure(brochure) {
     chunk.forEach(src => {
       const frame = document.createElement("div");
       frame.className = "frame";
-      frame.innerHTML = `<img src="${esc(src)}" alt="">`;
+      const img = document.createElement("img");
+      img.alt = "";
+      placePhoto(img, src);
+      frame.appendChild(img);
       grid.appendChild(frame);
     });
     page.appendChild(grid);
@@ -504,13 +507,25 @@ async function refreshQueue() {
   }
 }
 
+function placePhoto(img, src) {
+  img.onerror = () => {
+    img.onerror = null;
+    img.src = EMPTY_PHOTO;
+  };
+  img.src = src || EMPTY_PHOTO;
+}
+
 function intakeNote(draft) {
   const photos = (draft.listing && draft.listing.photos || []).length;
+  const saved = ((draft.brochure && draft.brochure.photos) || []).filter(src => String(src).indexOf("/api/marketplace/photo/") === 0).length;
   const specs = (draft.listing && draft.listing.oemSpecs || []).length;
-  if (specs) {
-    return `${photos} photos extracted. ${specs} specs filled from a spec search. Waiting for verification.`;
+  const specNote = specs
+    ? `${specs} specs filled from a spec search.`
+    : "No published spec sheet was found.";
+  if (saved) {
+    return `${saved} photos saved on the brochure. The first two are on page 1, the next three on page 2, and the rest on the following pages. ${specNote}`;
   }
-  return `${photos} photos extracted. No published spec sheet was found. Waiting for verification.`;
+  return `${photos} photo links saved. Facebook did not send the image files, so the frames are empty. ${specNote}`;
 }
 
 document.getElementById("fbScrape").addEventListener("click", async () => {

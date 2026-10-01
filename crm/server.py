@@ -11,8 +11,9 @@ from urllib.parse import urlparse
 from urllib.request import Request, build_opener
 
 from crm.marketplace import marketplace_url, parse_listing, to_brochure
+from crm.photos import photo_path, save_listing_photos
 from crm.specs import lookup_specs, specs_missing
-from crm.store import create_draft, get_draft, list_drafts, post_draft, save_verified_edits, verify_draft
+from crm.store import create_draft, get_draft, list_drafts, post_draft, save_draft, save_verified_edits, verify_draft
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_HTML = 2_000_000
@@ -71,6 +72,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(200, {"ok": True, "draft": get_draft(draft_id)})
             except ValueError as exc:
                 return self._json(404, {"ok": False, "error": str(exc)})
+        if path.startswith("/api/marketplace/photo/"):
+            return self._photo(path)
         if path in ("/", "/index.html"):
             self.path = "/index.html"
         return super().do_GET()
@@ -112,7 +115,6 @@ class Handler(SimpleHTTPRequestHandler):
                     draft["website"]["note"] = (
                         "Verified and queued for the website. Not sent to bigassmotors.com from this server."
                     )
-                from crm.store import save_draft
                 save_draft(draft)
                 return self._json(200, {"ok": True, "draft": draft})
             return self._json(404, {"ok": False, "error": "Unknown action."})
@@ -135,6 +137,27 @@ class Handler(SimpleHTTPRequestHandler):
         if not isinstance(data, dict):
             raise ValueError("Send a JSON object.")
         return data
+
+    def _photo(self, path: str):
+        parts = [part for part in path.split("/") if part]
+        if len(parts) != 5:
+            return self._json(404, {"ok": False, "error": "Unknown photo."})
+        try:
+            file = photo_path(parts[3], parts[4])
+        except ValueError as exc:
+            return self._json(404, {"ok": False, "error": str(exc)})
+        data = file.read_bytes()
+        kind = {
+            ".jpg": "image/jpeg",
+            ".png": "image/png",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+        }[file.suffix]
+        self.send_response(200)
+        self.send_header("Content-Type", kind)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def _json(self, status: int, payload: dict):
         body = json.dumps(payload).encode()
@@ -168,7 +191,12 @@ def _hold(html: str, url: str) -> dict:
         except (OSError, ValueError):
             listing["oemSpecs"] = []
     brochure = to_brochure(listing, pending=True)
-    return create_draft(listing, brochure)
+    draft = create_draft(listing, brochure)
+    urls = list(listing.get("photos") or [])
+    if urls:
+        draft["brochure"]["photos"] = save_listing_photos(draft["id"], urls)
+        save_draft(draft)
+    return draft
 
 
 def main():

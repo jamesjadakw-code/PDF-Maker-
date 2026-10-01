@@ -126,12 +126,15 @@ class ServerTests(unittest.TestCase):
         store.ROOT = Path(self.tmp.name)
         self.specs_patch = patch("crm.server.lookup_specs", return_value=[])
         self.specs_patch.start()
+        self.photo_patch = patch("crm.photos.fetch_image", side_effect=OSError("blocked"))
+        self.photo_patch.start()
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.port = self.httpd.server_address[1]
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
 
     def tearDown(self):
+        self.photo_patch.stop()
         self.specs_patch.stop()
         self.httpd.shutdown()
         self.tmp.cleanup()
@@ -212,6 +215,68 @@ class SpecSearchTests(unittest.TestCase):
         self.assertIn("JT20specs.pdf", fetcher.read_url)
         self.assertEqual(dict(rows)["Thrust force"], "17,000 lb")
         self.assertGreaterEqual(len(rows), 4)
+
+
+class PhotoFileTests(unittest.TestCase):
+    JPEG = b"\xff\xd8\xff\xd9"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        os.environ["BAM_DATA_DIR"] = self.tmp.name
+        store.ROOT = Path(self.tmp.name)
+        self.specs_patch = patch("crm.server.lookup_specs", return_value=[])
+        self.specs_patch.start()
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.port = self.httpd.server_address[1]
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread.start()
+
+    def tearDown(self):
+        self.specs_patch.stop()
+        self.httpd.shutdown()
+        self.tmp.cleanup()
+
+    def test_saved_photos_show_on_the_brochure_and_the_crm_keeps_the_links(self):
+        from crm.photos import photo_path
+
+        with patch("crm.photos.fetch_image", return_value=self.JPEG):
+            created = self._post("/api/marketplace/parse", {
+                "url": ITEM_URL,
+                "html": FIXTURE.read_text(encoding="utf-8"),
+            })
+        draft = created["draft"]
+        shown = draft["brochure"]["photos"]
+        self.assertEqual(len(shown), 7)
+        self.assertTrue(all(src.startswith(f"/api/marketplace/photo/{draft['id']}/") for src in shown))
+        self.assertTrue(photo_path(draft["id"], "0.jpg").is_file())
+        self.assertTrue(all("fbcdn.net" in src for src in draft["listing"]["photos"]))
+        with urllib.request.urlopen(f"http://127.0.0.1:{self.port}{shown[0]}") as response:
+            self.assertEqual(response.headers.get("Content-Type"), "image/jpeg")
+            self.assertEqual(response.read(), self.JPEG)
+        edited = dict(draft["brochure"])
+        edited["photos"] = [
+            f"http://127.0.0.1:{self.port}{shown[0]}",
+            *shown[1:],
+        ]
+        edited["priceLine"] = "PRICE: $149,000"
+        verified = store.verify_draft(draft["id"], edited)
+        self.assertTrue(all("fbcdn.net" in src for src in verified["listing"]["photos"]))
+        self.assertNotIn("127.0.0.1", " ".join(verified["listing"]["photos"]))
+
+    def test_a_blocked_photo_keeps_its_link(self):
+        from crm.photos import save_listing_photos
+
+        shown = save_listing_photos("abc123abc123", ["https://scontent.xx.fbcdn.net/v/missing.jpg"], fetcher=lambda url: b"not-an-image")
+        self.assertEqual(shown, ["https://scontent.xx.fbcdn.net/v/missing.jpg"])
+
+    def _post(self, path, payload):
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{self.port}{path}",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as response:
+            return json.loads(response.read().decode())
 
 
 class FakeCrmTests(unittest.TestCase):
