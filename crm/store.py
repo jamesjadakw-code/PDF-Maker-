@@ -29,13 +29,16 @@ def _path(draft_id: str) -> Path:
 
 def create_draft(listing: dict, brochure: dict) -> dict:
     draft_id = uuid.uuid4().hex[:12]
+    stored = dict(listing)
+    stored["askingPrice"] = stored.get("price") or ""
+    stored["price"] = ""
     draft = {
         "id": draft_id,
         "status": "pending_verification",
         "createdAt": _now(),
         "verifiedAt": None,
         "postedAt": None,
-        "listing": listing,
+        "listing": stored,
         "brochure": brochure,
         "website": None,
     }
@@ -78,6 +81,8 @@ def verify_draft(draft_id: str, brochure: dict | None = None) -> dict:
     if brochure:
         draft["brochure"] = brochure
         draft["listing"]["photos"] = brochure.get("photos") or draft["listing"].get("photos") or []
+        from crm.marketplace import edited_price
+        draft["listing"]["price"] = edited_price(brochure)
     draft["status"] = "verified"
     draft["verifiedAt"] = _now()
     if draft.get("brochure"):
@@ -90,6 +95,22 @@ def verify_draft(draft_id: str, brochure: dict | None = None) -> dict:
     return save_draft(draft)
 
 
+def save_verified_edits(draft_id: str, brochure: dict) -> dict:
+    """Keep price edits made after verification. Pending drafts stay locked."""
+    draft = get_draft(draft_id)
+    if draft["status"] == "posted":
+        raise ValueError("This listing is already posted.")
+    if draft["status"] != "verified":
+        raise PermissionError("Verify the brochure before editing the price.")
+    draft["brochure"] = brochure
+    draft["listing"]["photos"] = brochure.get("photos") or draft["listing"].get("photos") or []
+    from crm.marketplace import edited_price
+    draft["listing"]["price"] = edited_price(brochure)
+    draft["listing"]["location"] = ""
+    draft["listing"]["sourceUrl"] = ""
+    return save_draft(draft)
+
+
 def post_draft(draft_id: str) -> dict:
     draft = get_draft(draft_id)
     if draft["status"] != "verified":
@@ -97,15 +118,15 @@ def post_draft(draft_id: str) -> dict:
     listing = draft["listing"]
     draft["website"] = {
         "title": listing.get("title"),
-        "price": listing.get("price"),
-        "location": listing.get("location"),
+        "price": listing.get("price") or "",
+        "location": "",
         "description": listing.get("description"),
         "year": listing.get("year"),
         "hours": listing.get("hours"),
         "condition": listing.get("condition"),
         "photos": listing.get("photos") or [],
-        "sourceUrl": listing.get("sourceUrl"),
-        "stock": f"FB-{(listing.get('itemId') or draft_id)[-6:]}",
+        "sourceUrl": "",
+        "stock": "",
     }
     draft["status"] = "posted"
     draft["postedAt"] = _now()

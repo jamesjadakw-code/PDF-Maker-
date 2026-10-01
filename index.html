@@ -154,7 +154,7 @@
       <textarea id="inInc" rows="8"></textarea>
     </div>
   </div>
-  <label>Price bar</label>
+  <label>Price bar <span class="hint" id="priceHint">Locked until verification. Then edit the selling price.</span></label>
   <input id="inPrice" />
   <label>Page 2 title</label>
   <input id="inP2" />
@@ -322,9 +322,12 @@ function render() {
   document.getElementById("outWeb").textContent = document.getElementById("inWeb").value;
   bullets("inHigh", document.getElementById("outHigh"));
   bullets("inInc", document.getElementById("outInc"));
+  const editedPrice = (document.getElementById("inPrice").value.match(/\$[\d,]+/) || [""])[0];
   const specs = lines("inSpecs").map(row => {
     const i = row.indexOf("|");
-    return i < 0 ? [row, ""] : [row.slice(0, i).trim(), row.slice(i + 1).trim()];
+    const pair = i < 0 ? [row, ""] : [row.slice(0, i).trim(), row.slice(i + 1).trim()];
+    if (pair[0].toLowerCase() === "price" && editedPrice) pair[1] = editedPrice;
+    return pair;
   });
   document.getElementById("outSpecs").innerHTML = specs.map(([l, v]) =>
     `<div class="srow"><b>${l.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</b><span>${v.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</span></div>`
@@ -449,12 +452,18 @@ function showDraft(draft) {
   const status = draft.status;
   document.getElementById("fbVerify").disabled = status !== "pending_verification";
   document.getElementById("fbPost").disabled = status !== "verified";
+  const price = document.getElementById("inPrice");
+  const priceHint = document.getElementById("priceHint");
+  price.readOnly = status === "pending_verification";
   if (status === "pending_verification") {
     banner.className = "no-print";
-    banner.textContent = "Pending verification. Photos and info are in the brochure. Nothing is posted on the website yet.";
+    banner.textContent = "Pending verification. Location, the listing URL, and the source are off this draft. Edit the price after you verify.";
+    priceHint.textContent = "Locked until verification.";
   } else if (status === "verified") {
     banner.className = "no-print ok";
-    banner.textContent = "Verified. Filing it creates a hidden Draft on the CRM. It stays off the website until you List Now.";
+    banner.textContent = "Verified. Edit the price, then file the hidden draft. It stays off the website until you List Now.";
+    priceHint.textContent = "Edit the selling price before filing.";
+    price.focus();
   } else {
     banner.className = "no-print ok";
     const crm = draft.website && draft.website.crm;
@@ -529,7 +538,7 @@ document.getElementById("fbVerify").addEventListener("click", async () => {
   try {
     const data = await api("/api/marketplace/verify", { id: currentDraft.id, brochure: currentBrochure() });
     showDraft(data.draft);
-    document.getElementById("fbMsg").textContent = "Verified. It is still not on the website until you post it.";
+    document.getElementById("fbMsg").textContent = "Verified. Edit the price, then file the hidden draft.";
     refreshQueue();
   } catch (err) {
     document.getElementById("fbMsg").textContent = err.message;
@@ -539,7 +548,7 @@ document.getElementById("fbVerify").addEventListener("click", async () => {
 document.getElementById("fbPost").addEventListener("click", async () => {
   if (!currentDraft) return;
   try {
-    const data = await api("/api/marketplace/post", { id: currentDraft.id });
+    const data = await api("/api/marketplace/post", { id: currentDraft.id, brochure: currentBrochure() });
     showDraft(data.draft);
     const crm = data.draft.website && data.draft.website.crm;
     document.getElementById("fbMsg").textContent = crm

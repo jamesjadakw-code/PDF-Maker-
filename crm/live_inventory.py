@@ -13,7 +13,7 @@ from http.cookiejar import CookieJar
 from urllib.parse import urlencode
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
-from crm.marketplace import machine_fields
+from crm.marketplace import crm_draft_fields
 
 CRM_BASE = "https://bigassmotorscrm.bigassmotors.com"
 
@@ -31,10 +31,10 @@ class LiveInventory:
             )]
         self.opener = opener
 
-    def create_hidden_draft(self, listing: dict) -> dict:
+    def create_hidden_draft(self, listing: dict, brochure: dict | None = None) -> dict:
         self._login()
         page = self._get("/inventory/add_url.php")
-        fields = machine_fields(listing)
+        fields = crm_draft_fields(listing, brochure)
         photos = list(listing.get("photos") or [])[:20]
         payload = {
             "title": fields["title"],
@@ -43,19 +43,19 @@ class LiveInventory:
             "model": fields["model"],
             "category": fields["category"],
             "hours": fields["hours"] or None,
-            "price": int(fields["price"]) if fields["price"].isdigit() else fields["price"],
-            "price_raw": fields["price"],
-            "location": fields["location"],
+            "price": fields["price"],
+            "price_raw": "",
+            "location": "",
             "seller": "",
             "description": fields["description"],
             "photos": photos,
             "serial": "",
-            "via": ["Facebook Marketplace"],
+            "via": [],
         }
         pairs = [
             ("_csrf", _csrf(page)),
             ("do", "create"),
-            ("url", listing.get("sourceUrl") or ""),
+            ("url", ""),
             ("x", json.dumps(payload, separators=(",", ":"))),
             ("year", fields["year"]),
             ("make", fields["make"]),
@@ -64,7 +64,7 @@ class LiveInventory:
             ("hours", fields["hours"]),
             ("serial", ""),
             ("price", fields["price"]),
-            ("location", fields["location"]),
+            ("location", ""),
             ("seller", ""),
             ("description", fields["description"][:4000]),
         ]

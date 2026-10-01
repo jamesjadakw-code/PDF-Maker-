@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, build_opener
 
 from crm.marketplace import marketplace_url, parse_listing, to_brochure
-from crm.store import create_draft, get_draft, list_drafts, post_draft, verify_draft
+from crm.store import create_draft, get_draft, list_drafts, post_draft, save_verified_edits, verify_draft
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_HTML = 2_000_000
@@ -95,6 +95,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(200, {"ok": True, "draft": draft})
             if path == "/api/marketplace/post":
                 draft_id = payload.get("id") or ""
+                if payload.get("brochure"):
+                    save_verified_edits(draft_id, payload.get("brochure"))
                 held = get_draft(draft_id)
                 crm_unit = _file_hidden_draft(held)
                 draft = post_draft(draft_id)
@@ -152,7 +154,9 @@ def _file_hidden_draft(draft: dict) -> dict | None:
     from crm.live_inventory import CRM_BASE, LiveInventory
 
     base = os.environ.get("BAM_CRM_BASE", CRM_BASE)
-    return LiveInventory(email, password, base=base).create_hidden_draft(draft["listing"])
+    return LiveInventory(email, password, base=base).create_hidden_draft(
+        draft["listing"], draft.get("brochure")
+    )
 
 
 def _hold(html: str, url: str) -> dict:

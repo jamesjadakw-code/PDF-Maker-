@@ -173,6 +173,43 @@ def machine_fields(listing: dict) -> dict:
     }
 
 
+def edited_price(brochure: dict | None) -> str:
+    """Dollar amount typed onto the brochure after verification. Blank until then."""
+    if not brochure:
+        return ""
+    chunks = [brochure.get("priceLine") or ""]
+    for row in brochure.get("specs") or []:
+        if str(row).lower().startswith("price"):
+            chunks.append(str(row))
+    text = " ".join(chunks)
+    match = _MONEY_RE.search(text)
+    if not match:
+        bare = re.search(r"(?:price:?\s*)(\d[\d,]{3,})", text, re.I)
+        if not bare:
+            return ""
+        amount = bare.group(1)
+    else:
+        amount = match.group(1)
+    try:
+        return f"${float(amount.replace(',', '')):,.0f}"
+    except ValueError:
+        return ""
+
+
+def crm_draft_fields(listing: dict, brochure: dict | None = None) -> dict:
+    """Fields written onto the original CRM draft.
+
+    Location, the Marketplace URL, and the source stay off. Price is whatever
+    was edited onto the brochure after verification, or blank.
+    """
+    fields = machine_fields(listing)
+    fields["location"] = ""
+    fields["sourceUrl"] = ""
+    fields["source"] = ""
+    fields["price"] = re.sub(r"[^\d]", "", edited_price(brochure))
+    return fields
+
+
 def money(value: str) -> str:
     if not value:
         return ""
@@ -270,37 +307,35 @@ def _login_wall(html: str, listing: dict) -> bool:
 
 
 def to_brochure(listing: dict, pending: bool = True) -> dict:
-    """Map a scraped listing onto the two-page BAM brochure fields."""
-    title = listing.get("title") or "Marketplace unit"
-    price = listing.get("price") or "Call for Price"
+    """Map a scraped listing onto the two-page BAM brochure fields.
+
+    The original draft leaves off location, the listing URL, and the source.
+    Price stays blank until someone edits it after verification.
+    """
+    title = listing.get("title") or "Equipment unit"
     hours = listing.get("hours") or ""
     if hours.isdigit():
         hours = f"{int(hours):,}"
-    location = listing.get("location") or "Location on listing"
     condition = listing.get("condition") or "USED"
     raw_description = listing.get("description") or title
     highlights = _sentences(raw_description)[:7] or [title]
-    included = _feature_lines(raw_description)[:6] or [f"Marketplace item {listing.get('itemId') or ''}".strip()]
+    included = _feature_lines(raw_description)[:6] or [title]
     description = re.sub(r"\s*\n\s*", " ", raw_description).strip()
-    gate = "Pending verification — not on the website" if pending else "Verified"
-    status_bits = [condition, f"{hours} Hours" if hours else "", location, gate]
+    gate = "Pending verification — not on the website" if pending else "Verified — edit the price"
+    status_bits = [condition, f"{hours} Hours" if hours else "", gate]
     specs = [
         ("Year", listing.get("year") or "—"),
         ("Title", title),
         ("Hours", f"{hours}" if hours else "—"),
         ("Condition", condition),
-        ("Price", price),
-        ("Location", location),
-        ("Listing ID", listing.get("itemId") or "—"),
-        ("Source", "Facebook Marketplace"),
+        ("Price", ""),
         ("Photos", str(len(listing.get("photos") or []))),
         ("Status", "Pending verification" if pending else "Verified"),
         ("Website", "Held until verified" if pending else "Ready to post"),
         ("Phone", "+1-904-767-5232"),
         ("Email", "sales@bigassmotors.com"),
-        ("Stock", f"FB-{listing.get('itemId')[-6:]}" if listing.get("itemId") else "FB-NEW"),
+        ("Stock", "—"),
         ("Make / model", title),
-        ("City", location),
         ("Currency", "USD"),
         ("Seller contact", "sales@bigassmotors.com"),
         ("Freight", "US & MX — quote on request"),
@@ -308,7 +343,6 @@ def to_brochure(listing: dict, pending: bool = True) -> dict:
         ("As-is", "Sold as-is"),
         ("Brochure", "BAM letter"),
         ("Queue", "CRM verification"),
-        ("Item URL", listing.get("sourceUrl") or "—"),
         ("Mobile", "+1-904-729-1051"),
         ("Web", "www.bigassmotors.com"),
     ]
@@ -316,22 +350,22 @@ def to_brochure(listing: dict, pending: bool = True) -> dict:
         specs.append(("", ""))
     return {
         "title": title,
-        "subtitle": "Facebook Marketplace import  •  Review before it goes on the website",
+        "subtitle": "Review before it goes on the website",
         "status": "  |  ".join(bit for bit in status_bits if bit),
         "description": description,
         "highlights": highlights,
         "included": included,
-        "priceLine": f"PRICE: {price}  •  +1-904-767-5232  •  sales@bigassmotors.com",
-        "page2Title": f"{title}  •  Marketplace listing",
-        "specHead": "TECHNICAL SPECIFICATIONS — MARKETPLACE IMPORT",
+        "priceLine": "PRICE: ",
+        "page2Title": title,
+        "specHead": "TECHNICAL SPECIFICATIONS",
         "specs": [f"{label} | {value}" for label, value in specs[:26]],
         "condition": (
-            f"Imported from Facebook Marketplace. {gate}. "
-            "Confirm hours, price, serial, and that every photo is this unit before posting. "
+            f"{gate}. Edit the price after verification. "
+            "Confirm hours, serial, and that every photo is this unit before posting. "
             "Trailer and support equipment are not included unless the listing says so."
         ),
-        "ready": f"{'HELD FOR REVIEW' if pending else 'READY TO MOVE'}  —  {price}",
-        "lock": "Verify this listing before it is posted on the website." if pending else "Call or text to lock it down.",
+        "ready": "HELD FOR REVIEW" if pending else "READY TO MOVE",
+        "lock": "Verify this listing, then edit the price." if pending else "Edit the price, then file the draft.",
         "phone": "+1-904-767-5232",
         "web": "sales@bigassmotors.com  •  www.bigassmotors.com",
         "photos": list(listing.get("photos") or []),

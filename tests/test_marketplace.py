@@ -42,6 +42,23 @@ class ParseTests(unittest.TestCase):
         self.assertIn("HELD FOR REVIEW", brochure["ready"])
         self.assertEqual(len(brochure["photos"]), 7)
         self.assertEqual(len(brochure["specs"]), 26)
+        sheet = " ".join([
+            brochure["status"], brochure["subtitle"], brochure["priceLine"],
+            brochure["condition"], brochure["page2Title"], *brochure["specs"],
+        ])
+        self.assertNotIn("Jacksonville", sheet)
+        self.assertNotIn("facebook.com", sheet.lower())
+        self.assertNotIn("Facebook", sheet)
+        self.assertNotIn("128,500", sheet)
+        self.assertNotIn("128500", sheet)
+        labels = [row.split("|", 1)[0].strip() for row in brochure["specs"]]
+        self.assertIn("Price", labels)
+        self.assertNotIn("Location", labels)
+        self.assertNotIn("Source", labels)
+        self.assertNotIn("Item URL", labels)
+        self.assertNotIn("City", labels)
+        self.assertNotIn("Listing ID", labels)
+        self.assertEqual(len(brochure["specs"]), 26)
 
     def test_machine_fields_match_the_crm_unit_form(self):
         listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
@@ -67,13 +84,26 @@ class QueueTests(unittest.TestCase):
     def test_post_is_blocked_until_verified(self):
         listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
         draft = store.create_draft(listing, to_brochure(listing))
+        self.assertEqual(draft["listing"]["price"], "")
+        self.assertEqual(draft["listing"]["askingPrice"], "$128,500")
+        edited = to_brochure(listing)
+        edited["priceLine"] = "PRICE: $149,000  •  +1-904-767-5232  •  sales@bigassmotors.com"
         with self.assertRaises(PermissionError):
             store.post_draft(draft["id"])
+        with self.assertRaises(PermissionError):
+            store.save_verified_edits(draft["id"], edited)
         verified = store.verify_draft(draft["id"])
         self.assertEqual(verified["status"], "verified")
+        self.assertEqual(verified["listing"]["price"], "")
+        saved = store.save_verified_edits(draft["id"], edited)
+        self.assertEqual(saved["listing"]["price"], "$149,000")
+        self.assertEqual(saved["listing"]["location"], "")
+        self.assertEqual(saved["listing"]["sourceUrl"], "")
         posted = store.post_draft(draft["id"])
         self.assertEqual(posted["status"], "posted")
-        self.assertEqual(posted["website"]["price"], "$128,500")
+        self.assertEqual(posted["website"]["price"], "$149,000")
+        self.assertEqual(posted["website"]["location"], "")
+        self.assertEqual(posted["website"]["sourceUrl"], "")
         self.assertEqual(len(posted["website"]["photos"]), 7)
 
 
@@ -199,16 +229,30 @@ class FakeCrmTests(unittest.TestCase):
         self.assertNotIn("list_now", create[0])
         self.assertEqual(create[0].count("photos%5B%5D="), 7)
         self.assertIn("hours=1840", create[0])
-        self.assertIn("price=128500", create[0])
+        self.assertNotIn("price=128500", create[0])
+        self.assertNotIn("Jacksonville", create[0])
+        self.assertNotIn("marketplace", create[0].lower())
+        self.assertIn("price=", create[0])
+        self.assertIn("location=", create[0])
+        self.assertIn("url=", create[0])
 
         os.environ["BAM_CRM_EMAIL"] = "sales@bigassmotors.com"
         os.environ["BAM_CRM_PASSWORD"] = "secret"
         os.environ["BAM_CRM_BASE"] = self.base
         draft = store.create_draft(listing, to_brochure(listing))
         store.verify_draft(draft["id"])
+        edited = to_brochure(listing)
+        edited["priceLine"] = "PRICE: $149,000"
+        store.save_verified_edits(draft["id"], edited)
         held = store.get_draft(draft["id"])
         crm_unit = _file_hidden_draft(held)
         self.assertEqual(crm_unit["id"], "55")
+        creates = [body for path, body in self.fake_cls.posts if path.startswith("/inventory/add_url")]
+        self.assertEqual(len(creates), 2)
+        self.assertNotIn("price=128500", creates[1])
+        self.assertIn("price=149000", creates[1])
+        self.assertNotIn("Jacksonville", creates[1])
+        self.assertNotIn("marketplace", creates[1].lower())
         self.assertTrue(all("list_now" not in body for _path, body in self.fake_cls.posts))
 
 
