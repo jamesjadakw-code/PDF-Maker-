@@ -1,2 +1,4 @@
 inventory-google/google-config.php
 inventory-google/google-tokens/*.json
+seller-google/google-config.php
+seller-google/google-tokens/*.json
