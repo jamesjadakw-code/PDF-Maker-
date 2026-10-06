@@ -10,6 +10,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, build_opener
 
+from crm.brochure_file import pdf_path, save_upload
 from crm.marketplace import marketplace_url, parse_listing, to_brochure
 from crm.photos import photo_path, save_listing_photos
 from crm.specs import lookup_specs, specs_missing
@@ -74,6 +75,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(404, {"ok": False, "error": str(exc)})
         if path.startswith("/api/marketplace/photo/"):
             return self._photo(path)
+        if path.startswith("/api/marketplace/brochure/"):
+            return self._brochure(path)
         if path in ("/", "/index.html"):
             self.path = "/index.html"
         return super().do_GET()
@@ -81,7 +84,7 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         try:
-            payload = self._body()
+            payload = self._body(28_000_000 if path == "/api/marketplace/brochure" else None)
             if path == "/api/marketplace/scrape":
                 url = marketplace_url(payload.get("url") or "")
                 html = FETCHER.fetch(url)
@@ -97,6 +100,23 @@ class Handler(SimpleHTTPRequestHandler):
             if path == "/api/marketplace/verify":
                 draft = verify_draft(payload.get("id") or "", payload.get("brochure"))
                 return self._json(200, {"ok": True, "draft": draft})
+            if path == "/api/marketplace/brochure":
+                draft_id = payload.get("id") or ""
+                held = get_draft(draft_id)
+                if held.get("status") not in ("verified", "posted"):
+                    raise PermissionError("Verify the brochure before saving the PDF.")
+                import base64
+                try:
+                    raw = base64.b64decode(payload.get("pdf") or "", validate=True)
+                except (ValueError, TypeError) as exc:
+                    raise ValueError("Send the brochure PDF.") from exc
+                save_upload(draft_id, raw)
+                card = held.get("machineCard") or {}
+                card["brochureSaved"] = True
+                card["pdf"] = f"/api/marketplace/brochure/{draft_id}.pdf"
+                held["machineCard"] = card
+                save_draft(held)
+                return self._json(200, {"ok": True, "draft": held})
             if path == "/api/marketplace/post":
                 draft_id = payload.get("id") or ""
                 if payload.get("brochure"):
@@ -125,9 +145,9 @@ class Handler(SimpleHTTPRequestHandler):
         except (HTTPError, URLError, TimeoutError) as exc:
             return self._json(502, {"ok": False, "error": f"Could not reach Facebook: {exc}"})
 
-    def _body(self) -> dict:
+    def _body(self, limit: int | None = None) -> dict:
         length = int(self.headers.get("Content-Length") or 0)
-        if length > MAX_HTML + 10_000:
+        if length > (limit or MAX_HTML + 10_000):
             raise ValueError("Request is too large.")
         raw = self.rfile.read(length) if length else b"{}"
         try:
@@ -137,6 +157,23 @@ class Handler(SimpleHTTPRequestHandler):
         if not isinstance(data, dict):
             raise ValueError("Send a JSON object.")
         return data
+
+    def _brochure(self, path: str):
+        name = path.rsplit("/", 1)[-1]
+        draft_id = name[:-4] if name.endswith(".pdf") else ""
+        try:
+            get_draft(draft_id)
+            file = pdf_path(draft_id)
+        except ValueError as exc:
+            return self._json(404, {"ok": False, "error": str(exc)})
+        if not file.is_file():
+            return self._json(404, {"ok": False, "error": "That brochure PDF is not on the machine card yet."})
+        data = file.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def _photo(self, path: str):
         parts = [part for part in path.split("/") if part]

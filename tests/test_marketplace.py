@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import quote
 
-from crm.marketplace import machine_fields, marketplace_url, parse_listing, to_brochure
+from crm.marketplace import brochure_photos, machine_fields, marketplace_url, parse_listing, to_brochure
 from crm.server import Handler
 from crm.specs import lookup_specs, parse_spec_text, public_https, specs_missing
 from crm import store
@@ -69,6 +69,19 @@ class ParseTests(unittest.TestCase):
         self.assertTrue(any(row.strip() == "Price |" for row in filled["specs"]))
         self.assertIn("published figures", filled["specHead"])
 
+    def test_url_pull_keeps_every_photo_and_the_brochure_stops_at_ten(self):
+        html = FIXTURE.read_text(encoding="utf-8")
+        extra = "\n".join(
+            '{"uri":"https:\\/\\/scontent.xx.fbcdn.net\\/v\\/t45.5328-4\\/extra%d.jpg"}' % n
+            for n in range(12)
+        )
+        listing = parse_listing(html.replace("</script>", extra + "\n</script>"), ITEM_URL)
+        self.assertEqual(len(listing["photos"]), 19)
+        brochure = to_brochure(listing)
+        self.assertEqual(len(brochure["photos"]), 10)
+        self.assertEqual(len(brochure_photos(listing["photos"])), 10)
+        self.assertEqual(brochure["photos"][0], listing["photos"][0])
+
     def test_machine_fields_match_the_crm_unit_form(self):
         listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
         fields = machine_fields(listing)
@@ -114,6 +127,21 @@ class QueueTests(unittest.TestCase):
         self.assertEqual(posted["website"]["location"], "")
         self.assertEqual(posted["website"]["sourceUrl"], "")
         self.assertEqual(len(posted["website"]["photos"]), 7)
+
+    def test_verify_saves_the_brochure_pdf_on_the_machine_card(self):
+        listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
+        listing["photos"] = [f"https://scontent.xx.fbcdn.net/v/t45.5328-4/p{n}.jpg" for n in range(15)]
+        draft = store.create_draft(listing, to_brochure(listing))
+        self.assertEqual(len(draft["listing"]["photos"]), 15)
+        self.assertEqual(len(draft["brochure"]["photos"]), 10)
+        verified = store.verify_draft(draft["id"], draft["brochure"])
+        card = verified["machineCard"]
+        self.assertTrue(card["brochureSaved"])
+        self.assertTrue(card["pdf"].endswith(f"/{draft['id']}.pdf"))
+        self.assertTrue(card["name"].startswith("BAM_Brochure_"))
+        pdf = (store.ROOT / "brochures" / f"{draft['id']}.pdf").read_bytes()
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertEqual(len(verified["listing"]["photos"]), 15)
 
 
 class ServerTests(unittest.TestCase):
@@ -350,6 +378,10 @@ class FakeCrmTests(unittest.TestCase):
         self.assertIn("do=create", create[0])
         self.assertNotIn("list_now", create[0])
         self.assertEqual(create[0].count("photos%5B%5D="), 7)
+        listing["photos"] = [f"https://scontent.xx.fbcdn.net/v/t45.5328-4/more{n}.jpg" for n in range(25)]
+        client.create_hidden_draft(listing)
+        full = [body for path, body in self.fake_cls.posts if path.startswith("/inventory/add_url")][-1]
+        self.assertEqual(full.count("photos%5B%5D="), 25)
         self.assertIn("hours=1840", create[0])
         self.assertNotIn("price=128500", create[0])
         self.assertNotIn("Jacksonville", create[0])
@@ -370,11 +402,13 @@ class FakeCrmTests(unittest.TestCase):
         crm_unit = _file_hidden_draft(held)
         self.assertEqual(crm_unit["id"], "55")
         creates = [body for path, body in self.fake_cls.posts if path.startswith("/inventory/add_url")]
-        self.assertEqual(len(creates), 2)
-        self.assertNotIn("price=128500", creates[1])
-        self.assertIn("price=149000", creates[1])
-        self.assertNotIn("Jacksonville", creates[1])
-        self.assertNotIn("marketplace", creates[1].lower())
+        self.assertEqual(len(creates), 3)
+        self.assertEqual(creates[1].count("photos%5B%5D="), 25)
+        self.assertNotIn("price=128500", creates[2])
+        self.assertIn("price=149000", creates[2])
+        self.assertEqual(creates[2].count("photos%5B%5D="), 25)
+        self.assertNotIn("Jacksonville", creates[2])
+        self.assertNotIn("marketplace", creates[2].lower())
         self.assertTrue(all("list_now" not in body for _path, body in self.fake_cls.posts))
 
 

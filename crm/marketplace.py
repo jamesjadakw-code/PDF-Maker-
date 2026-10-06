@@ -232,7 +232,16 @@ def _keep_image(url: str) -> bool:
     return not any(part in lowered for part in blocked)
 
 
-def image_urls(html: str, limit: int = 40) -> list[str]:
+# The brochure sheet shows this many photos. The machine listing keeps every photo from the URL.
+BROCHURE_PHOTO_MAX = 10
+
+
+def brochure_photos(photos: list | None) -> list:
+    return list(photos or [])[:BROCHURE_PHOTO_MAX]
+
+
+def image_urls(html: str, limit: int | None = None) -> list[str]:
+    """Every listing photo on the page. limit is off unless a caller sets one."""
     found: list[str] = []
     seen: set[str] = set()
     og = _meta(html, "image")
@@ -248,7 +257,7 @@ def image_urls(html: str, limit: int = 40) -> list[str]:
             continue
         seen.add(key)
         found.append(url)
-        if len(found) >= limit:
+        if limit is not None and len(found) >= limit:
             break
     return found
 
@@ -358,7 +367,7 @@ def to_brochure(listing: dict, pending: bool = True) -> dict:
         "lock": "Verify this listing, then edit the price." if pending else "Edit the price, then file the draft.",
         "phone": "+1-904-767-5232",
         "web": "sales@bigassmotors.com  •  www.bigassmotors.com",
-        "photos": list(listing.get("photos") or []),
+        "photos": brochure_photos(listing.get("photos")),
     }
 
 

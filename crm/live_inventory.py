@@ -35,7 +35,7 @@ class LiveInventory:
         self._login()
         page = self._get("/inventory/add_url.php")
         fields = crm_draft_fields(listing, brochure)
-        photos = list(listing.get("photos") or [])[:20]
+        photos = list(listing.get("photos") or [])
         payload = {
             "title": fields["title"],
             "year": int(fields["year"]) if fields["year"].isdigit() else fields["year"],
