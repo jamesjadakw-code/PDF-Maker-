@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, build_opener
 
 from crm.brochure_file import pdf_path, save_upload
-from crm.marketplace import marketplace_url, parse_listing, to_brochure
+from crm.marketplace import brochure_photos, marketplace_url, parse_listing, to_brochure
 from crm.photos import photo_path, save_listing_photos
 from crm.specs import lookup_specs, specs_missing
 from crm.store import create_draft, get_draft, list_drafts, post_draft, save_draft, save_verified_edits, verify_draft
@@ -231,7 +231,7 @@ def _hold(html: str, url: str) -> dict:
     draft = create_draft(listing, brochure)
     urls = list(listing.get("photos") or [])
     if urls:
-        draft["brochure"]["photos"] = save_listing_photos(draft["id"], urls)
+        draft["brochure"]["photos"] = brochure_photos(save_listing_photos(draft["id"], urls))
         save_draft(draft)
     return draft
 

@@ -199,6 +199,19 @@ class ServerTests(unittest.TestCase):
         self.assertFalse(posted["draft"]["website"].get("sent"))
         self.assertNotIn("crm", posted["draft"]["website"])
 
+    def test_parse_keeps_every_listing_photo_and_caps_the_brochure(self):
+        html = FIXTURE.read_text(encoding="utf-8").replace(
+            "</script>",
+            "\n".join(
+                '{"uri":"https:\\/\\/scontent.xx.fbcdn.net\\/v\\/t45.5328-4\\/extra%d.jpg"}' % n
+                for n in range(12)
+            ) + "\n</script>",
+        )
+        created = self._post("/api/marketplace/parse", {"url": ITEM_URL, "html": html})
+        draft = created["draft"]
+        self.assertEqual(len(draft["listing"]["photos"]), 19)
+        self.assertEqual(len(draft["brochure"]["photos"]), 10)
+
 
 class SpecSearchTests(unittest.TestCase):
     def test_spec_sheet_text_becomes_rows(self):
@@ -275,6 +288,7 @@ class PhotoFileTests(unittest.TestCase):
         draft = created["draft"]
         shown = draft["brochure"]["photos"]
         self.assertEqual(len(shown), 7)
+        self.assertLessEqual(len(shown), 10)
         self.assertTrue(all(src.startswith(f"/api/marketplace/photo/{draft['id']}/") for src in shown))
         self.assertTrue(photo_path(draft["id"], "0.jpg").is_file())
         self.assertTrue(all("fbcdn.net" in src for src in draft["listing"]["photos"]))
