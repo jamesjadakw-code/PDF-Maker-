@@ -83,6 +83,11 @@
     background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 10px; cursor:pointer;
   }
   .match:hover { border-color:#cfcfd8; }
+  .match.on { border-color:var(--ac); background:var(--acs); }
+  .match-open { flex:1; text-align:left; background:transparent; border:0; min-height:0; padding:0; }
+  .match-pack { min-height:32px; padding:6px 10px; font-size:12px; }
+  .pill.packed { background:#e7f7ee; color:#11683a; }
+  #pairBar { background:var(--acs); border:1px solid var(--ac); color:var(--ac); border-radius:10px; padding:8px 10px; margin:0 0 12px; font:550 13px/1.4 var(--font); }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
   .lead-form label, .sheet-edit label {
     display:block; font:550 10px/1 var(--font); letter-spacing:.06em; text-transform:uppercase;
@@ -176,8 +181,10 @@
   <span class="counts" id="counts"></span>
 </header>
 <details class="paste no-print">
-  <summary>Facebook blocked the fetch — paste listing HTML</summary>
-  <textarea id="fbHtml" rows="3" placeholder="View source of the Marketplace item, then paste it here"></textarea>
+  <summary>Paste blocked listing HTML or a Facebook lead</summary>
+  <textarea id="fbHtml" rows="3" placeholder="Marketplace page HTML (View source), then Extract"></textarea>
+  <textarea id="inboundLead" rows="3" placeholder='{"field_data":[{"name":"full_name","values":["…"]},{"name":"phone_number","values":["…"]},{"name":"machine","values":["JT20"]}]}'></textarea>
+  <button class="ghost" id="ingestLead" type="button" style="margin-bottom:8px;">Ingest buyer</button>
 </details>
 
 <div class="split">
@@ -194,7 +201,7 @@
   <main class="detail">
     <p class="hint" id="fbMsg">Extract a unit or open a buyer. Verify stays off the website until you file the hidden draft.</p>
     <div class="empty" id="empty">
-      No row selected. Extract a Marketplace URL, or add a buyer. Clicking a row opens details here — no extra tabs.
+      No row selected. Extract a unit, ingest a buyer, or click a ranked match. Prepare PDF packs the brochure onto that buyer. Clicking a row opens details here.
     </div>
 
     <section id="unitPane" hidden>
@@ -211,6 +218,7 @@
         </div>
       </div>
       <div id="verifyBanner" class="no-print" hidden></div>
+      <div id="pairBar" class="no-print" hidden></div>
       <div id="unitMatches" class="match-list no-print"></div>
       <details class="sheet-edit no-print">
         <summary>Edit brochure copy</summary>
@@ -311,6 +319,7 @@
           <button class="export" id="saveLead" type="button">Save buyer</button>
         </div>
       </div>
+      <div id="leadPackets" class="match-list no-print"></div>
       <div id="leadMatches" class="match-list no-print"></div>
       <form class="lead-form" id="leadForm">
         <div class="grid2">
@@ -343,6 +352,7 @@ const WEB = "sales@bigassmotors.com  •  www.bigassmotors.com";
 let desk = { drafts: [], leads: [], matches: [], counts: {} };
 let currentDraft = null;
 let currentLead = null;
+let pairLeadId = "";
 let listFilter = "all";
 let pickTarget = null;
 
@@ -512,7 +522,8 @@ function paintList() {
     if (listFilter === "all" && matches.length) {
       parts.push("<div class='filters' style='position:static'><em class='hint'>Ranked matches</em></div>");
       matches.slice(0, 12).forEach(row => {
-        parts.push(`<button type="button" class="row" data-kind="match" data-listing="${esc(row.listingId)}" data-lead="${esc(row.leadId)}"><span class="score">${esc(row.score)}</span><span><b>${esc(row.unitTitle)}</b><em>${esc(row.leadName)} · ${esc((row.reasons || []).join(", "))}</em></span><span class="pill ${esc(row.tier)}">${esc(row.tier)}</span></button>`);
+        const mark = row.packeted ? "packed" : row.tier;
+        parts.push(`<button type="button" class="row" data-kind="match" data-listing="${esc(row.listingId)}" data-lead="${esc(row.leadId)}"><span class="score">${esc(row.score)}</span><span><b>${esc(row.unitTitle)}</b><em>${esc(row.leadName)} · ${esc((row.reasons || []).join(", "))}</em></span><span class="pill ${esc(mark)}">${esc(mark)}</span></button>`);
       });
     }
     const drafts = (desk.drafts || []).filter(hit);
@@ -531,7 +542,8 @@ function paintList() {
       leads.forEach(row => {
         const on = currentLead && currentLead.id === row.id ? " on" : "";
         const want = [row.make, row.model, row.category].filter(Boolean).join(" ");
-        parts.push(`<button type="button" class="row${on}" data-kind="lead" data-id="${esc(row.id)}"><span class="pill verified">buyer</span><span><b>${esc(row.name)}</b><em>${esc(row.phone || row.email)} · ${esc(want)}</em></span><span>${row.budgetMax ? "$" + Number(row.budgetMax).toLocaleString() : ""}</span></button>`);
+        const packed = row.packets ? row.packets + " pdf" : (row.budgetMax ? "$" + Number(row.budgetMax).toLocaleString() : "");
+        parts.push(`<button type="button" class="row${on}" data-kind="lead" data-id="${esc(row.id)}"><span class="pill verified">buyer</span><span><b>${esc(row.name)}</b><em>${esc(row.phone || row.email)} · ${esc(want)}</em></span><span>${esc(packed)}</span></button>`);
       });
     }
   }
@@ -545,6 +557,7 @@ function go(hash) {
 
 function route() {
   const hash = location.hash.replace(/^#/, "") || "/";
+  const pair = hash.match(/^\/unit\/([a-f0-9]{12})\/for\/([a-f0-9]{12})$/);
   const unit = hash.match(/^\/unit\/([a-f0-9]{12})$/);
   const lead = hash.match(/^\/lead\/([a-f0-9]{12})$/);
   const dead = hash.match(/^\/(inventory|leads|brochure|theme|v0[123]|Code)(\/|$)/);
@@ -553,11 +566,13 @@ function route() {
     location.hash = "#/";
     return;
   }
-  if (unit) return loadUnit(unit[1]);
+  if (pair) return loadUnit(pair[1], pair[2]);
+  if (unit) return loadUnit(unit[1], "");
   if (lead) return loadLead(lead[1]);
   if (hash === "/" || hash === "") {
     currentDraft = null;
     currentLead = null;
+    pairLeadId = "";
     $("unitPane").hidden = true;
     $("leadPane").hidden = true;
     $("empty").hidden = false;
@@ -565,12 +580,22 @@ function route() {
   }
 }
 
-async function loadUnit(id) {
+async function loadUnit(id, forLead) {
+  pairLeadId = forLead || "";
   try {
     const data = await api("/api/marketplace/draft/" + id);
     showDraft(data.draft);
     const matches = await api("/api/matches?listing=" + encodeURIComponent(id));
     paintMatches($("unitMatches"), matches.matches || [], "lead");
+    const bar = $("pairBar");
+    const hit = (matches.matches || []).find(row => row.leadId === pairLeadId);
+    if (hit) {
+      bar.hidden = false;
+      bar.textContent = hit.score + " · " + hit.leadName + (hit.packeted ? " — brochure packed." : " — Prepare PDF packs this buyer.");
+    } else {
+      bar.hidden = true;
+      bar.textContent = "";
+    }
   } catch (err) {
     $("fbMsg").textContent = err.message;
     location.hash = "#/";
@@ -597,8 +622,11 @@ function paintMatches(box, rows, openKind) {
   box.innerHTML = rows.map(row => {
     const label = openKind === "lead" ? row.leadName : row.unitTitle;
     const extra = openKind === "lead" ? (row.phone || row.email) : (row.price || "");
-    const target = openKind === "lead" ? "#/lead/" + row.leadId : "#/unit/" + row.listingId;
-    return `<button type="button" class="match" data-hash="${esc(target)}" data-listing="${esc(row.listingId)}" data-lead="${esc(row.leadId)}"><span><b>${esc(row.score)} · ${esc(label)}</b><em style="display:block;color:#6f7180">${esc(extra)} · ${esc((row.reasons || []).join(", "))}</em></span><span class="pill ${esc(row.tier)}">${row.brochurePdf ? "PDF" : esc(row.tier)}</span></button>`;
+    const target = openKind === "lead" ? "#/lead/" + row.leadId : "#/unit/" + row.listingId + "/for/" + row.leadId;
+    const on = pairLeadId && row.leadId === pairLeadId ? " on" : "";
+    const mark = row.packeted ? "packed" : row.tier;
+    const packLabel = row.packeted ? "Packed" : "Prepare PDF";
+    return `<div class="match${on}" data-listing="${esc(row.listingId)}" data-lead="${esc(row.leadId)}"><button type="button" class="match-open" data-hash="${esc(target)}"><b>${esc(row.score)} · ${esc(label)}</b><em style="display:block;color:#6f7180">${esc(extra)} · ${esc((row.reasons || []).join(", "))}</em></button><button type="button" class="export match-pack">${esc(packLabel)}</button><span class="pill ${esc(mark)}">${esc(mark)}</span></div>`;
   }).join("");
 }
 
@@ -669,6 +697,10 @@ function showLead(lead) {
   setField("leadHoursMax", want.hoursMax || "");
   setField("leadKeywords", (want.keywords || []).join(", "));
   setField("leadNotes", lead.notes);
+  const packets = lead.packets || [];
+  $("leadPackets").innerHTML = packets.length
+    ? packets.map(row => `<a class="match" href="${esc(row.pdf || "#")}"><span><b>${esc(row.score || "")} · ${esc(row.title || "Brochure")}</b><em style="display:block;color:#6f7180">${esc(row.preparedAt || "packed")}</em></span><span class="pill packed">pdf</span></a>`).join("")
+    : "";
   paintList();
 }
 
@@ -701,29 +733,40 @@ $("rows").addEventListener("click", event => {
   if (!row) return;
   if (row.dataset.kind === "unit") go("#/unit/" + row.dataset.id);
   if (row.dataset.kind === "lead") go("#/lead/" + row.dataset.id);
-  if (row.dataset.kind === "match") go("#/unit/" + row.dataset.listing);
+  if (row.dataset.kind === "match") go("#/unit/" + row.dataset.listing + "/for/" + row.dataset.lead);
 });
 
+async function packBrochure(listingId, leadId) {
+  const data = await api("/api/matches/brochure", { listingId, leadId });
+  applyDesk(data);
+  $("fbMsg").textContent = "Brochure packed for " + data.lead.name + " · score " + data.match.score;
+  if (currentDraft && currentDraft.id === listingId) {
+    const matches = await api("/api/matches?listing=" + encodeURIComponent(listingId));
+    paintMatches($("unitMatches"), matches.matches || [], "lead");
+  }
+  if (currentLead && currentLead.id === leadId) {
+    showLead(data.lead);
+    const matches = await api("/api/matches?lead=" + encodeURIComponent(leadId));
+    paintMatches($("leadMatches"), matches.matches || [], "unit");
+  }
+  return data;
+}
+
 document.querySelector(".detail").addEventListener("click", async event => {
+  const pack = event.target.closest(".match-pack");
+  const open = event.target.closest(".match-open");
   const match = event.target.closest(".match");
-  if (!match) return;
-  if (match.dataset.hash && match.dataset.hash.startsWith("#/lead/")) {
-    go(match.dataset.hash);
+  if (pack && match) {
+    event.preventDefault();
+    try {
+      await packBrochure(match.dataset.listing, match.dataset.lead);
+    } catch (err) {
+      $("fbMsg").textContent = err.message;
+    }
     return;
   }
-  if (match.dataset.hash && match.dataset.hash.startsWith("#/unit/")) {
-    if (currentLead && match.dataset.listing) {
-      try {
-        const data = await api("/api/matches/brochure", { listingId: match.dataset.listing, leadId: currentLead.id });
-        $("fbMsg").textContent = "Brochure packet on " + data.lead.name + " · score " + data.match.score;
-        applyDesk(data);
-        go("#/unit/" + match.dataset.listing);
-      } catch (err) {
-        $("fbMsg").textContent = err.message;
-      }
-      return;
-    }
-    go(match.dataset.hash);
+  if (open && open.dataset.hash) {
+    go(open.dataset.hash);
   }
 });
 
@@ -748,7 +791,24 @@ $("saveLead").addEventListener("click", async () => {
     const saved = await api("/api/leads", leadPayload());
     applyDesk(saved);
     go("#/lead/" + saved.lead.id);
-    $("fbMsg").textContent = "Buyer saved. Matches are on this pane.";
+    const hot = (saved.counts && saved.counts.hot) || 0;
+    $("fbMsg").textContent = hot ? "Buyer saved. " + hot + " hot match(es) on the desk." : "Buyer saved. Matches are on this pane.";
+  } catch (err) {
+    $("fbMsg").textContent = err.message;
+  }
+});
+
+$("ingestLead").addEventListener("click", async () => {
+  $("fbMsg").textContent = "Ingesting buyer…";
+  try {
+    const raw = $("inboundLead").value.trim();
+    if (!raw) throw new Error("Paste a Facebook lead JSON object.");
+    const payload = JSON.parse(raw);
+    const saved = await api("/api/leads", payload);
+    applyDesk(saved);
+    go("#/lead/" + saved.lead.id);
+    const hot = (saved.counts && saved.counts.hot) || 0;
+    $("fbMsg").textContent = "Buyer ingested. " + (hot ? hot + " hot match(es) ranked." : "No hot unit yet.");
   } catch (err) {
     $("fbMsg").textContent = err.message;
   }
@@ -761,10 +821,11 @@ $("fbExtract").addEventListener("click", async () => {
     const data = html
       ? await api("/api/marketplace/parse", { url: $("fbUrl").value || "https://www.facebook.com/marketplace/item/0/", html })
       : await api("/api/marketplace/scrape", { url: $("fbUrl").value });
-    await refreshDesk();
-    go("#/unit/" + data.draft.id);
+    applyDesk(data);
+    const hot = (data.matches || []).find(row => row.listingId === data.draft.id && row.score >= 70);
+    go(hot ? "#/unit/" + data.draft.id + "/for/" + hot.leadId : "#/unit/" + data.draft.id);
     const photos = (data.draft.listing && data.draft.listing.photos || []).length;
-    $("fbMsg").textContent = photos + " photos on the unit. Verify before it can be filed.";
+    $("fbMsg").textContent = photos + " photos on the unit." + (hot ? " Hot buyer " + hot.leadName + " (" + hot.score + "). Verify to pack the brochure." : " Verify before it can be filed.");
   } catch (err) {
     $("fbMsg").textContent = err.message;
   }
@@ -776,8 +837,13 @@ $("fbVerify").addEventListener("click", async () => {
     const data = await api("/api/marketplace/verify", { id: currentDraft.id, brochure: currentBrochure() });
     showDraft(data.draft);
     await saveSheetPdf(data.draft);
-    await refreshDesk();
-    $("fbMsg").textContent = "Verified. The BAM brochure PDF is on the machine card. Edit the price, then file the hidden draft.";
+    applyDesk(data);
+    const packed = (data.packets || []).length;
+    $("fbMsg").textContent = packed
+      ? "Verified. Brochure packed for " + packed + " hot buyer(s). Edit the price, then file the hidden draft."
+      : "Verified. The BAM brochure PDF is on the machine card. Edit the price, then file the hidden draft.";
+    const matches = await api("/api/matches?listing=" + encodeURIComponent(data.draft.id));
+    paintMatches($("unitMatches"), matches.matches || [], "lead");
   } catch (err) {
     $("fbMsg").textContent = err.message;
   }

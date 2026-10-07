@@ -13,7 +13,7 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, build_opener
 
 from crm.brochure_file import attach_brochure, pdf_path, save_upload
-from crm.desk import matches_for, snapshot
+from crm.desk import matches_for, packet_hot_matches, snapshot
 from crm.ingest import lead_from_payload
 from crm.leads import attach_packet, get_lead, list_leads, upsert_lead
 from crm.marketplace import brochure_photos, marketplace_url, parse_listing, to_brochure
@@ -158,7 +158,8 @@ class Handler(SimpleHTTPRequestHandler):
         if action == "scrape":
             url = marketplace_url(payload.get("url") or "")
             html = FETCHER.fetch(url)
-            return self._json(200, {"ok": True, "draft": _hold(html, url)})
+            draft = _hold(html, url)
+            return self._json(200, {"ok": True, "draft": draft, **snapshot()})
         if action == "parse":
             url = marketplace_url(payload.get("url") or "https://www.facebook.com/marketplace/item/0/")
             html = payload.get("html") or ""
@@ -166,10 +167,12 @@ class Handler(SimpleHTTPRequestHandler):
                 raise ValueError("Paste the listing page HTML.")
             if len(html) > MAX_HTML:
                 raise ValueError("That page is too large to import.")
-            return self._json(200, {"ok": True, "draft": _hold(html, url)})
+            draft = _hold(html, url)
+            return self._json(200, {"ok": True, "draft": draft, **snapshot()})
         if action == "verify":
             draft = verify_draft(payload.get("id") or "", payload.get("brochure"))
-            return self._json(200, {"ok": True, "draft": draft})
+            packets = packet_hot_matches(draft)
+            return self._json(200, {"ok": True, "draft": get_draft(draft["id"]), "packets": packets, **snapshot()})
         if action == "brochure":
             draft_id = payload.get("id") or ""
             held = get_draft(draft_id)
@@ -208,7 +211,10 @@ class Handler(SimpleHTTPRequestHandler):
             save_draft(draft)
             return self._json(200, {"ok": True, "draft": draft})
         if action == "lead_upsert":
-            lead = upsert_lead(payload)
+            body = payload
+            if "field_data" in payload or payload.get("object") == "page" or payload.get("leadgen_id"):
+                body = lead_from_payload(payload)
+            lead = upsert_lead(body)
             return self._json(200, {"ok": True, "lead": lead, **snapshot()})
         if action == "ingest_leads":
             self._require_ingest_token()
@@ -368,11 +374,17 @@ def _hold(html: str, url: str) -> dict:
 def _prepare_match_brochure(payload: dict) -> dict:
     draft = get_draft(payload.get("listingId") or payload.get("id") or "")
     lead = get_lead(payload.get("leadId") or "")
-    attach_brochure(draft)
-    save_draft(draft)
     from crm.match import score_pair
 
     row = score_pair(draft, lead)
+    existing = [
+        item for item in (lead.get("packets") or [])
+        if item.get("listingId") == draft["id"]
+    ]
+    if existing:
+        return {"ok": True, "draft": draft, "lead": lead, "match": row, "packet": existing[0], **snapshot()}
+    attach_brochure(draft)
+    save_draft(draft)
     pdf = (draft.get("machineCard") or {}).get("pdf") or ""
     packet = {
         "listingId": draft["id"],
@@ -384,7 +396,7 @@ def _prepare_match_brochure(payload: dict) -> dict:
     }
     saved = attach_packet(lead["id"], packet)
     packet["preparedAt"] = saved.get("updatedAt") or packet["preparedAt"]
-    return {"ok": True, "draft": draft, "lead": saved, "match": row, "packet": packet}
+    return {"ok": True, "draft": draft, "lead": saved, "match": row, "packet": packet, **snapshot()}
 
 
 def main():

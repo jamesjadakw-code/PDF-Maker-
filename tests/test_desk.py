@@ -173,8 +173,37 @@ class DeskServerTests(unittest.TestCase):
         self.assertIn("BAM Desk", html)
         self.assertIn("#/unit/", html)
         self.assertIn("#/lead/", html)
+        self.assertIn("/for/", html)
+        self.assertIn("Prepare PDF", html)
+        self.assertIn("Ingest buyer", html)
         self.assertNotIn("Theme</span>", html)
         self.assertNotIn("Post to website", html)
+
+    def test_verify_packs_hot_buyers_and_desk_accepts_facebook_json(self):
+        created = self._post("/api/marketplace/parse", {
+            "url": ITEM_URL,
+            "html": FIXTURE.read_text(encoding="utf-8"),
+        })
+        ingested = self._post("/api/leads", {
+            "leadgen_id": "fb-desk",
+            "field_data": [
+                {"name": "full_name", "values": ["Jose Martinez"]},
+                {"name": "phone_number", "values": ["9045550100"]},
+                {"name": "email", "values": ["jose@fiber.example"]},
+                {"name": "make", "values": ["Ditch Witch"]},
+                {"name": "machine", "values": ["JT20"]},
+                {"name": "category", "values": ["Directional Drills"]},
+                {"name": "budget", "values": ["160000"]},
+            ],
+        })
+        self.assertEqual(ingested["lead"]["externalId"], "fb-desk")
+        self.assertGreaterEqual(ingested["counts"]["hot"], 1)
+        verified = self._post("/api/marketplace/verify", {"id": created["draft"]["id"]})
+        self.assertEqual(len(verified["packets"]), 1)
+        self.assertEqual(verified["packets"][0]["leadId"], ingested["lead"]["id"])
+        self.assertTrue(verified["packets"][0]["pdf"].endswith(".pdf"))
+        again = self._post("/api/marketplace/verify", {"id": created["draft"]["id"]})
+        self.assertTrue(again["packets"][0]["already"])
 
     def test_dead_paths_are_rewritten_or_json_404(self):
         with urllib.request.urlopen(self._url("/desk")) as response:
