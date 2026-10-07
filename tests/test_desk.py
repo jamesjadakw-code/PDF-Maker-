@@ -222,6 +222,10 @@ class DeskServerTests(unittest.TestCase):
         with urllib.request.urlopen(self._url("/")) as response:
             html = response.read().decode()
         self.assertIn("BAM Desk", html)
+        self.assertIn("Arial, Helvetica", html)
+        self.assertNotIn("Inter", html)
+        self.assertNotIn("#5b5bd6", html)
+        self.assertNotIn("eeeefc", html)
         self.assertIn("#/unit/", html)
         self.assertIn("#/lead/", html)
         self.assertIn("/for/", html)
