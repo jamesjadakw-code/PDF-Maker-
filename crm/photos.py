@@ -85,6 +85,15 @@ def photo_path(draft_id: str, name: str) -> Path:
     return path
 
 
+def first_saved_photo(draft_id: str) -> Path | None:
+    folder = _folder(draft_id)
+    for name in ("0.jpg", "0.jpeg", "0.png", "0.webp", "0.gif"):
+        path = folder / name
+        if path.is_file():
+            return path
+    return None
+
+
 def _folder(draft_id: str) -> Path:
     if not re.fullmatch(r"[a-f0-9]{12}", draft_id or ""):
         raise ValueError("Unknown draft.")

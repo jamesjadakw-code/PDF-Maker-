@@ -37,9 +37,13 @@ class FakeWire:
 class EnrichTests(unittest.TestCase):
     def setUp(self):
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GOOGLE_API_KEY", None)
 
     def tearDown(self):
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GOOGLE_API_KEY", None)
 
     def test_skips_incomplete_make_or_model(self):
         item = {"title": "Used directional drill", "description": "No brand on this ad."}

@@ -15,9 +15,9 @@ from crm.brochure_file import attach_brochure, pdf_path, save_upload
 from crm.desk import matches_for, packet_hot_matches, snapshot
 from crm.ingest import lead_from_payload
 from crm.leads import attach_packet, get_lead, list_leads, upsert_lead
-from crm.enrich import enrich_machine_with_oem_specs
+from crm.catalog import process_incoming_third_party_listing
 from crm.marketplace import brochure_photos, marketplace_url, parse_listing, to_brochure
-from crm.photos import photo_path, save_listing_photos
+from crm.photos import first_saved_photo, photo_path, save_listing_photos
 from crm.store import (
     create_draft,
     find_by_item_id,
@@ -335,7 +335,22 @@ def _file_hidden_draft(draft: dict) -> dict | None:
 
 
 def _fill_oem_specs(listing: dict) -> None:
-    enrich_machine_with_oem_specs(listing)
+    process_incoming_third_party_listing(listing)
+
+
+def _vision_refine(draft: dict) -> None:
+    if not (os.environ.get("GEMINI_API_KEY", "").strip() or os.environ.get("GOOGLE_API_KEY", "").strip()):
+        return
+    try:
+        image = first_saved_photo(draft["id"])
+    except ValueError:
+        return
+    if image is None:
+        return
+    listing = process_incoming_third_party_listing(draft.get("listing") or {}, image_path=str(image))
+    draft["listing"] = listing
+    draft["brochure"] = to_brochure(listing, pending=draft.get("status") == "pending_verification")
+    save_draft(draft)
 
 
 def _hold(html: str, url: str) -> dict:
@@ -358,6 +373,7 @@ def _hold(html: str, url: str) -> dict:
     if urls:
         draft["brochure"]["photos"] = brochure_photos(save_listing_photos(draft["id"], urls))
         save_draft(draft)
+        _vision_refine(draft)
     return draft
 
 

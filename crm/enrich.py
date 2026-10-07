@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from crm.catalog import apply_catalog, catalog_covers
 from crm.machine import (
     SPEC_FIELDS,
     field_for_label,
@@ -36,6 +37,11 @@ def enrich_machine_with_oem_specs(scraped_item: dict, fetcher=None) -> dict:
 
 
 def _enrich(scraped_item: dict, fetcher=None) -> dict:
+    if scraped_item.get("is_staged") is True or str(scraped_item.get("source_type") or "").lower() in {
+        "staged", "internal", "original", "bam",
+    }:
+        return scraped_item
+
     ident = identify_machine(scraped_item)
     make = ident["make"]
     model = ident["model"]
@@ -43,6 +49,10 @@ def _enrich(scraped_item: dict, fetcher=None) -> dict:
         scraped_item["is_oem_enriched"] = False
         return scraped_item
 
+    catalog_named = apply_catalog(scraped_item, ident)
+    ident = identify_machine(scraped_item)
+    make = ident["make"] or make
+    model = ident["model"] or model
     scraped_item["year"] = ident["year"] or scraped_item.get("year") or ""
     scraped_item["make"] = make
     scraped_item["model"] = model
@@ -52,24 +62,34 @@ def _enrich(scraped_item: dict, fetcher=None) -> dict:
     scraped_item["spec_profile"] = ident["family"]
 
     allowed = ident["spec_fields"]
-    named = {}
-    try:
-        named = _from_wire(ident, allowed)
-    except (OSError, ValueError, TimeoutError, HTTPError, URLError, TypeError, json.JSONDecodeError):
-        named = {}
+    named = {key: value for key, value in catalog_named.items() if key in allowed}
+    cache_hit = catalog_covers(named, ident.get("family") or "")
+    if not cache_hit:
+        try:
+            named.update(_from_wire(ident, allowed))
+        except (OSError, ValueError, TimeoutError, HTTPError, URLError, TypeError, json.JSONDecodeError):
+            pass
+    extra_rows = list(scraped_item.pop("_catalog_rows", []) or [])
     rows = _filter_rows(list(scraped_item.get("oemSpecs") or []), allowed)
-    if not rows:
+    if not cache_hit:
         probe = dict(scraped_item)
         probe["oemSpecs"] = []
         if specs_missing(probe):
             try:
                 with ThreadPoolExecutor(max_workers=1) as pool:
-                    rows = _filter_rows(
+                    looked = _filter_rows(
                         list(pool.submit(lookup_specs, probe, fetcher).result(timeout=SPEC_SECONDS)),
                         allowed,
                     )
+                for row in looked:
+                    if row not in rows:
+                        rows.append(row)
             except TimeoutError:
-                rows = []
+                pass
+    for label, value in extra_rows:
+        row = (str(label), str(value))
+        if label and value and row not in rows:
+            rows.append(row)
     named = _merge_named(scraped_item, named, rows, allowed)
 
     filled = []

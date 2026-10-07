@@ -93,7 +93,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(fields["price"], "128500")
         self.assertEqual(fields["location"], "Jacksonville, FL")
         self.assertEqual(fields["family"], "hdd")
-        self.assertEqual(fields["attachments"], [])
+        self.assertEqual(fields["attachments"], ["pipe_loader"])
 
     def test_rt115_title_is_a_trencher_by_model_and_year(self):
         fields = machine_fields({"title": "2012 Ditch Witch RT-115", "year": "2012"})
@@ -180,6 +180,8 @@ class ServerTests(unittest.TestCase):
         os.environ.pop("BAM_CRM_BASE", None)
         store.ROOT = Path(self.tmp.name)
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GOOGLE_API_KEY", None)
         self.specs_patch = patch("crm.enrich.lookup_specs", return_value=[])
         self.lookup = self.specs_patch.start()
         self.photo_patch = patch("crm.photos.fetch_image", side_effect=OSError("blocked"))
@@ -347,6 +349,8 @@ class PhotoFileTests(unittest.TestCase):
         os.environ["BAM_DATA_DIR"] = self.tmp.name
         store.ROOT = Path(self.tmp.name)
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GOOGLE_API_KEY", None)
         self.specs_patch = patch("crm.enrich.lookup_specs", return_value=[])
         self.specs_patch.start()
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

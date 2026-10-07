@@ -74,11 +74,15 @@ _FAMILY_CATEGORY = {
 _CATEGORY_FAMILY = {name.lower(): family for _keys, name, family in _CATEGORIES}
 
 _ATTACHMENT_PATTERNS = (
-    ("rocksaw", r"\b(?:rock\s*-?\s*saw|rocksaw|saw\s+attachment|concrete\s+saw|h[56]\d{2})\b"),
+    ("rocksaw", r"\b(?:rock\s*-?\s*saw|rocksaw|saw\s+attachment|concrete\s+saw|hydrawheel|h[56]\d{2})\b"),
     ("plow", r"\b(?:vibratory\s+)?plow\b"),
     ("reel", r"\breel(?:\s+carrier)?\b"),
-    ("backhoe", r"\bbackhoe(?:\s+attachment)?\b"),
+    ("backhoe", r"\bbackhoe(?:\s+attachment|\s+boom|\s+assembly)?\b"),
     ("bore", r"\b(?:boring\s+attachment|bore\s+attachment)\b"),
+    ("thumb", r"\b(?:hydraulic\s+)?thumb\b"),
+    ("bucket", r"\b(?:4[\s-]*in[\s-]*1|four[\s-]*in[\s-]*one).*(?:bucket)?|\b(?:loader\s+)?bucket\b"),
+    ("pipe_loader", r"\bpipe\s+loader\b"),
+    ("multiprocessor", r"\b(?:multi[\s-]*processor|mp15|demolition\s+shear)\b"),
 )
 
 # families=None → every machine. attachments=() → only when that kit is on the unit.
@@ -114,8 +118,13 @@ def identify_machine(listing: dict) -> dict:
     keyword_category, keyword_family = _keyword_category(title, listing.get("description") or "")
     family, category = _model_family(make, model)
     if not family:
-        family = keyword_family or _category_family(listing.get("category") or keyword_category)
-        category = listing.get("category") or keyword_category or _FAMILY_CATEGORY.get(family) or "Other Equipment"
+        listed = str(listing.get("category") or "").strip()
+        listed_family = _category_family(listed) if listed else ""
+        if listed_family and listed_family != "other":
+            family, category = listed_family, listed
+        else:
+            family = keyword_family or "other"
+            category = keyword_category or _FAMILY_CATEGORY.get(family) or "Other Equipment"
     attachments = detect_attachments(listing, title)
     fields = spec_fields_for(family, attachments)
     return {
@@ -167,10 +176,22 @@ def detect_attachments(listing: dict, title: str = "") -> list[str]:
         listed = [part.strip() for part in re.split(r"[,;/]", listed) if part.strip()]
     for item in listed:
         token = re.sub(r"[^a-z0-9]+", "", str(item).lower())
-        if token in {"rocksaw", "saw"} or "saw" in token:
+        if token in {"rocksaw", "saw", "hydrawheel"} or ("saw" in token and "backhoe" not in token):
             found.append("rocksaw")
-        elif token in {"plow", "vibratoryplow"}:
+        elif "plow" in token:
             found.append("plow")
+        elif "thumb" in token:
+            found.append("thumb")
+        elif "bucket" in token or "4in1" in token:
+            found.append("bucket")
+        elif "pipe" in token and "load" in token:
+            found.append("pipe_loader")
+        elif "processor" in token or token in {"mp15", "shear"}:
+            found.append("multiprocessor")
+        elif "backhoe" in token:
+            found.append("backhoe")
+        elif "reel" in token:
+            found.append("reel")
         elif token:
             found.append(token)
     blob = " ".join([
@@ -184,7 +205,7 @@ def detect_attachments(listing: dict, title: str = "") -> list[str]:
         if re.search(pattern, blob, re.I):
             found.append(name)
     ordered = []
-    for name in ("rocksaw", "plow", "reel", "backhoe", "bore"):
+    for name in ("rocksaw", "plow", "reel", "backhoe", "bore", "thumb", "bucket", "pipe_loader", "multiprocessor"):
         if name in found and name not in ordered:
             ordered.append(name)
     return ordered
