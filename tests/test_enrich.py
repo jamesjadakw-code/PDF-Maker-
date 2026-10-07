@@ -37,11 +37,13 @@ class FakeWire:
 class EnrichTests(unittest.TestCase):
     def setUp(self):
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ["XAI_API_KEY"] = ""
         os.environ.pop("GEMINI_API_KEY", None)
         os.environ.pop("GOOGLE_API_KEY", None)
 
     def tearDown(self):
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ["XAI_API_KEY"] = ""
         os.environ.pop("GEMINI_API_KEY", None)
         os.environ.pop("GOOGLE_API_KEY", None)
 

@@ -16,11 +16,13 @@ from crm.vision import detect_machine_from_image
 class CatalogIngestTests(unittest.TestCase):
     def setUp(self):
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ["XAI_API_KEY"] = ""
         os.environ.pop("GEMINI_API_KEY", None)
         os.environ.pop("GOOGLE_API_KEY", None)
 
     def tearDown(self):
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ["XAI_API_KEY"] = ""
         os.environ.pop("GEMINI_API_KEY", None)
         os.environ.pop("GOOGLE_API_KEY", None)
 
@@ -160,17 +162,15 @@ class CatalogIngestTests(unittest.TestCase):
         }
         jpeg = Path(tempfile.gettempdir()) / "bam-vision.jpg"
         jpeg.write_bytes(b"\xff\xd8\xff\xd9")
-        os.environ["GEMINI_API_KEY"] = "test-key"
+        os.environ["XAI_API_KEY"] = "test-key"
         payload = {
-            "candidates": [{
-                "content": {
-                    "parts": [{
-                        "text": json.dumps({
-                            "make": "Vermeer",
-                            "model": "RTX1250",
-                            "detected_attachments": ["rocksaw", "vibratory plow"],
-                        })
-                    }]
+            "choices": [{
+                "message": {
+                    "content": json.dumps({
+                        "make": "Vermeer",
+                        "model": "RTX1250",
+                        "detected_attachments": ["rocksaw", "vibratory plow"],
+                    })
                 }
             }]
         }
@@ -199,18 +199,16 @@ class CatalogIngestTests(unittest.TestCase):
         item = {"title": "Yellow excavator on the lot"}
         jpeg = Path(tempfile.gettempdir()) / "bam-vision-lectura.jpg"
         jpeg.write_bytes(b"\xff\xd8\xff\xd9")
-        os.environ["GEMINI_API_KEY"] = "test-key"
+        os.environ["XAI_API_KEY"] = "test-key"
         captured = {}
         payload = {
-            "candidates": [{
-                "content": {
-                    "parts": [{
-                        "text": json.dumps({
-                            "make": "CAT",
-                            "model": "320",
-                            "detected_attachments": ["bucket"],
-                        })
-                    }]
+            "choices": [{
+                "message": {
+                    "content": json.dumps({
+                        "make": "CAT",
+                        "model": "320",
+                        "detected_attachments": ["bucket"],
+                    })
                 }
             }]
         }
@@ -218,6 +216,8 @@ class CatalogIngestTests(unittest.TestCase):
         class FakeResp:
             def __init__(self, request):
                 captured["body"] = request.data.decode()
+                captured["url"] = request.full_url
+                captured["auth"] = request.get_header("Authorization")
 
             def __enter__(self):
                 return self
@@ -232,6 +232,11 @@ class CatalogIngestTests(unittest.TestCase):
              patch("crm.enrich.lookup_specs") as lookup:
             out = process_incoming_third_party_listing(item, image_path=str(jpeg))
         lookup.assert_not_called()
+        self.assertIn("https://api.x.ai/v1/chat/completions", captured["url"])
+        self.assertNotIn("test-key", captured["url"])
+        self.assertEqual(captured["auth"], "Bearer test-key")
+        self.assertIn('"model": "grok-4.6"', captured["body"])
+        self.assertIn('"reasoning_effort": "high"', captured["body"])
         self.assertIn("Caterpillar 320", captured["body"])
         self.assertIn("Ditch Witch JT20", captured["body"])
         self.assertIn("Vermeer D20x22 S3", captured["body"])
@@ -247,17 +252,15 @@ class CatalogIngestTests(unittest.TestCase):
     def test_photo_scan_fills_dozer_specs_from_lectura(self):
         jpeg = Path(tempfile.gettempdir()) / "bam-vision-d6.jpg"
         jpeg.write_bytes(b"\xff\xd8\xff\xd9")
-        os.environ["GEMINI_API_KEY"] = "test-key"
+        os.environ["XAI_API_KEY"] = "test-key"
         payload = {
-            "candidates": [{
-                "content": {
-                    "parts": [{
-                        "text": json.dumps({
-                            "make": "Caterpillar",
-                            "model": "D6",
-                            "detected_attachments": [],
-                        })
-                    }]
+            "choices": [{
+                "message": {
+                    "content": json.dumps({
+                        "make": "Caterpillar",
+                        "model": "D6",
+                        "detected_attachments": [],
+                    })
                 }
             }]
         }
@@ -296,7 +299,7 @@ class CatalogIngestTests(unittest.TestCase):
     def test_vision_failure_does_not_block(self):
         jpeg = Path(tempfile.gettempdir()) / "bam-vision3.jpg"
         jpeg.write_bytes(b"\xff\xd8\xff\xd9")
-        os.environ["GEMINI_API_KEY"] = "test-key"
+        os.environ["XAI_API_KEY"] = "test-key"
         with patch("crm.vision.urlopen", side_effect=URLError("down")):
             out = process_incoming_third_party_listing({
                 "title": "Vermeer D20x22 HDD",

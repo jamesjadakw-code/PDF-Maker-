@@ -1,7 +1,7 @@
-"""Optional photo+text make/model/attachment read. Off unless GEMINI_API_KEY is set.
+"""Photo make/model/attachment read through Grok 4.6.
 
-The scanner is constrained to the saved Lectura machinery master so a photo
-snaps onto a known unit, then enrich loads that row's specs.
+Off unless XAI_API_KEY is set, or data/xai.key holds the key.
+The scanner stays on the Lectura roster, then enrich loads that row.
 """
 
 from __future__ import annotations
@@ -13,8 +13,11 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-VISION_SECONDS = 8
+VISION_SECONDS = 60
 _MAX_IMAGE = 4_000_000
+MODEL = "grok-4.6"
+REASONING = "high"
+_API = "https://api.x.ai/v1/chat/completions"
 _PROMPT_HEAD = (
     "Analyze this heavy machinery listing image and text payload.\n"
     "1. Determine the core Manufacturer.\n"
@@ -30,9 +33,24 @@ _PROMPT_TAIL = (
 )
 
 
+def grok_key() -> str:
+    """Env wins, including an empty value so tests can turn the call off."""
+    if "XAI_API_KEY" in os.environ:
+        return os.environ["XAI_API_KEY"].strip()
+    data_dir = os.environ.get("BAM_DATA_DIR", "").strip()
+    candidates = []
+    if data_dir:
+        candidates.append(Path(data_dir) / "xai.key")
+    candidates.append(Path(__file__).resolve().parent.parent / "data" / "xai.key")
+    for path in candidates:
+        if path.is_file():
+            return path.read_text(encoding="utf-8").strip()
+    return ""
+
+
 def detect_machine_from_image(image_path: str | None, listing: dict | None = None) -> dict:
     """Return make/model/attachments from a listing photo. Empty dict if unset or failed."""
-    token = os.environ.get("GEMINI_API_KEY", "").strip() or os.environ.get("GOOGLE_API_KEY", "").strip()
+    token = grok_key()
     if not token or not image_path:
         return {}
     try:
@@ -58,7 +76,8 @@ def _detect(path: Path, listing: dict, token: str) -> dict:
 
     from crm.lectura import roster_lines, snap_identity
 
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+    model = os.environ.get("GROK_MODEL", MODEL).strip() or MODEL
+    effort = os.environ.get("GROK_REASONING", REASONING).strip() or REASONING
     roster = "\n".join(roster_lines())
     text = "\n".join(
         part for part in (
@@ -67,24 +86,28 @@ def _detect(path: Path, listing: dict, token: str) -> dict:
             _PROMPT_HEAD + roster + "\n" + _PROMPT_TAIL,
         ) if part
     )
+    data_url = f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
     body = json.dumps({
-        "contents": [{
-            "parts": [
-                {"inline_data": {"mime_type": mime, "data": base64.b64encode(data).decode("ascii")}},
-                {"text": text},
-            ]
+        "model": model,
+        "reasoning_effort": effort,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": data_url, "detail": "high"}},
+                {"type": "text", "text": text},
+            ],
         }],
-        "generationConfig": {"temperature": 0, "responseMimeType": "application/json"},
     }).encode()
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{model}:generateContent?key={token}"
-    )
     request = Request(
-        url,
+        _API,
         data=body,
         method="POST",
-        headers={"Content-Type": "application/json", "Accept": "application/json", "User-Agent": "BAM-CRM/1.0"},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "BAM-CRM/1.0",
+        },
     )
     with urlopen(request, timeout=VISION_SECONDS) as response:
         payload = json.loads(response.read().decode("utf-8", "replace") or "{}")
@@ -112,9 +135,18 @@ def _detect(path: Path, listing: dict, token: str) -> dict:
 
 
 def _response_text(payload: dict) -> str:
-    for candidate in payload.get("candidates") or []:
-        for part in ((candidate.get("content") or {}).get("parts") or []):
-            text = part.get("text")
-            if text:
-                return str(text)
-    return str(payload.get("text") or "")
+    for choice in payload.get("choices") or []:
+        message = choice.get("message") or {}
+        content = message.get("content")
+        if isinstance(content, str) and content.strip():
+            return content
+        if isinstance(content, list):
+            bits = []
+            for part in content:
+                if isinstance(part, str) and part.strip():
+                    bits.append(part)
+                elif isinstance(part, dict) and part.get("text"):
+                    bits.append(str(part["text"]))
+            if bits:
+                return "\n".join(bits)
+    return ""

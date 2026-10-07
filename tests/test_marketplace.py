@@ -180,6 +180,7 @@ class ServerTests(unittest.TestCase):
         os.environ.pop("BAM_CRM_BASE", None)
         store.ROOT = Path(self.tmp.name)
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ["XAI_API_KEY"] = ""
         os.environ.pop("GEMINI_API_KEY", None)
         os.environ.pop("GOOGLE_API_KEY", None)
         self.specs_patch = patch("crm.enrich.lookup_specs", return_value=[])
@@ -350,6 +351,7 @@ class PhotoFileTests(unittest.TestCase):
         os.environ["BAM_DATA_DIR"] = self.tmp.name
         store.ROOT = Path(self.tmp.name)
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ["XAI_API_KEY"] = ""
         os.environ.pop("GEMINI_API_KEY", None)
         os.environ.pop("GOOGLE_API_KEY", None)
         self.specs_patch = patch("crm.enrich.lookup_specs", return_value=[])
