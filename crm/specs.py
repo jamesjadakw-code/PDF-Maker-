@@ -51,7 +51,7 @@ def lookup_specs(listing: dict, fetcher=None) -> list[tuple[str, str]]:
     for link in search_links(query, fetcher)[:3]:
         try:
             text = fetcher.read(link)
-        except (OSError, ValueError):
+        except (OSError, ValueError, ImportError):
             continue
         rows = parse_spec_text(text)
         if len(rows) >= 4:

@@ -91,6 +91,12 @@ def verify_draft(draft_id: str, brochure: dict | None = None) -> dict:
         draft["brochure"]["lock"] = "Call or text to lock it down."
         ready = draft["brochure"].get("ready") or ""
         draft["brochure"]["ready"] = ready.replace("HELD FOR REVIEW", "READY TO MOVE")
+        from crm.marketplace import brochure_photos
+
+        draft["brochure"]["photos"] = brochure_photos(draft["brochure"].get("photos"))
+    from crm.brochure_file import attach_brochure
+
+    attach_brochure(draft)
     return save_draft(draft)
 
 
@@ -107,7 +113,7 @@ def save_verified_edits(draft_id: str, brochure: dict) -> dict:
     return save_draft(draft)
 
 
-_SAVED_PHOTO = re.compile(r"/api/marketplace/photo/[a-f0-9]{12}/\d{1,2}\.(jpg|png|gif|webp)")
+_SAVED_PHOTO = re.compile(r"/api/marketplace/photo/[a-f0-9]{12}/\d{1,4}\.(jpg|png|gif|webp)")
 
 
 def _saved_photo(src: str) -> bool:
@@ -121,14 +127,20 @@ def _apply_brochure(draft: dict, brochure: dict) -> None:
 
     sources = list((draft.get("listing") or {}).get("photos") or [])
     incoming = list(brochure.get("photos") or [])
-    merged = []
+    # The brochure only carries the first 10 photos. Keep every other listing photo.
+    merged = list(sources)
     for index, src in enumerate(incoming):
         src = str(src or "")
         if not src or src.startswith("data:image/svg") or _saved_photo(src):
-            if index < len(sources):
-                merged.append(sources[index])
             continue
-        merged.append(src)
+        if index < len(merged):
+            merged[index] = src
+        else:
+            merged.append(src)
+    from crm.marketplace import brochure_photos
+
+    brochure = dict(brochure)
+    brochure["photos"] = brochure_photos(incoming or sources)
     draft["brochure"] = brochure
     draft["listing"]["photos"] = merged or sources
     draft["listing"]["price"] = edited_price(brochure)

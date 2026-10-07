@@ -58,7 +58,7 @@ def save_listing_photos(draft_id: str, urls: list[str], fetcher=None) -> list[st
     fetcher = fetcher or fetch_image
     folder = _folder(draft_id)
     shown: list[str] = []
-    for index, url in enumerate(list(urls)[:40]):
+    for index, url in enumerate(list(urls)):
         try:
             data = fetcher(url)
             ext = image_ext(data)
@@ -76,7 +76,7 @@ def save_listing_photos(draft_id: str, urls: list[str], fetcher=None) -> list[st
 def photo_path(draft_id: str, name: str) -> Path:
     if not re.fullmatch(r"[a-f0-9]{12}", draft_id or ""):
         raise ValueError("Unknown photo.")
-    if not re.fullmatch(r"\d{1,2}\.(jpg|png|gif|webp)", name or ""):
+    if not re.fullmatch(r"\d{1,4}\.(jpg|png|gif|webp)", name or ""):
         raise ValueError("Unknown photo.")
     folder = (store.ROOT / "photos" / draft_id).resolve()
     path = (folder / name).resolve()

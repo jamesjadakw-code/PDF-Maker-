@@ -33,7 +33,7 @@
     width:100%; margin-top:16px; background:var(--gold); color:#111; border:0; border-radius:6px;
     font-weight:800; letter-spacing:1px; text-transform:uppercase; padding:12px; cursor:pointer;
   }
-  button.ghost {
+  button.ghost, a.ghost {
     width:100%; margin-top:8px; background:transparent; color:#fff; border:1px solid #444;
     border-radius:6px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; padding:10px; cursor:pointer; font-size:11px;
   }
@@ -135,6 +135,11 @@
     <div id="queue"></div>
     <button class="ghost" id="fbVerify" type="button" disabled>Verify listing</button>
     <button class="export" id="fbPost" type="button" disabled>File hidden CRM draft</button>
+    <div id="machineCard" hidden>
+      <h2>Machine card</h2>
+      <p class="hint" id="cardNote"></p>
+      <a class="ghost" id="cardPdf" href="#" style="display:block;text-align:center;text-decoration:none;">Download BAM brochure PDF</a>
+    </div>
   </div>
   <label>Page 1 title</label>
   <input id="inTitle" />
@@ -412,11 +417,11 @@ function applyBrochure(brochure) {
   setField("inPhone", brochure.phone);
   setField("inWeb", brochure.web);
   render();
-  const photos = brochure.photos || [];
+  const photos = (brochure.photos || []).slice(0, 10);
+  document.querySelectorAll(".extra-page").forEach(node => node.remove());
   ["ph-p1a", "ph-p1b", "ph-p2a", "ph-p2b", "ph-p2c"].forEach((id, index) => {
     placePhoto(document.getElementById(id), photos[index]);
   });
-  document.querySelectorAll(".extra-page").forEach(node => node.remove());
   const rest = photos.slice(5);
   for (let start = 0; start < rest.length; start += 6) {
     const chunk = rest.slice(start, start + 6);
@@ -426,7 +431,7 @@ function applyBrochure(brochure) {
     const header = document.getElementById("page1").querySelector(".brand").parentElement
       ? document.getElementById("page1").innerHTML.match(/[\s\S]*?<div class="rule" style="top:147.6pt"><\/div>/)[0]
       : "";
-    page.innerHTML = header + `<div class="center" style="top:163pt;font-size:13pt;font-weight:700;">All listing photos</div><div class="rule" style="top:190.1pt"></div>`;
+    page.innerHTML = header + `<div class="center" style="top:163pt;font-size:13pt;font-weight:700;">Brochure photos</div><div class="rule" style="top:190.1pt"></div>`;
     const grid = document.createElement("div");
     grid.className = "photo-grid";
     chunk.forEach(src => {
@@ -473,6 +478,17 @@ function showDraft(draft) {
     banner.textContent = crm
       ? "Hidden Draft " + (crm.stock || "") + " on the CRM. It is not on the website."
       : "Posted to the website queue. " + ((draft.website && draft.website.note) || "");
+  }
+  const card = document.getElementById("machineCard");
+  const savedCard = draft.machineCard;
+  if (savedCard && savedCard.brochureSaved && savedCard.pdf) {
+    card.hidden = false;
+    document.getElementById("cardNote").textContent = "BAM brochure saved on this machine card.";
+    const link = document.getElementById("cardPdf");
+    link.href = savedCard.pdf;
+    link.textContent = "Download " + (savedCard.name || "BAM brochure PDF");
+  } else {
+    card.hidden = true;
   }
 }
 
@@ -522,10 +538,11 @@ function intakeNote(draft) {
   const specNote = specs
     ? `${specs} specs filled from a spec search.`
     : "No published spec sheet was found.";
+  const onSheet = Math.min(saved || photos, 10);
   if (saved) {
-    return `${saved} photos saved on the brochure. The first two are on page 1, the next three on page 2, and the rest on the following pages. ${specNote}`;
+    return `${photos} photos kept on the machine listing. ${onSheet} of them are on the brochure (10 max): two on page 1, three on page 2, and the rest on the next page. ${specNote}`;
   }
-  return `${photos} photo links saved. Facebook did not send the image files, so the frames are empty. ${specNote}`;
+  return `${photos} photo links kept on the machine listing. The brochure uses the first ${onSheet}. Facebook did not send the image files, so the frames are empty. ${specNote}`;
 }
 
 document.getElementById("fbScrape").addEventListener("click", async () => {
@@ -562,7 +579,8 @@ document.getElementById("fbVerify").addEventListener("click", async () => {
   try {
     const data = await api("/api/marketplace/verify", { id: currentDraft.id, brochure: currentBrochure() });
     showDraft(data.draft);
-    document.getElementById("fbMsg").textContent = "Verified. Edit the price, then file the hidden draft.";
+    await saveSheetPdf(data.draft);
+    document.getElementById("fbMsg").textContent = "Verified. The BAM brochure PDF is on the machine card. Edit the price, then file the hidden draft.";
     refreshQueue();
   } catch (err) {
     document.getElementById("fbMsg").textContent = err.message;
@@ -586,20 +604,37 @@ document.getElementById("fbPost").addEventListener("click", async () => {
 
 refreshQueue();
 
+async function sheetPdfBlob() {
+  return html2pdf().set({
+    margin: 0,
+    image: { type: "jpeg", quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0 },
+    jsPDF: { unit: "pt", format: "letter", orientation: "portrait" },
+    pagebreak: { mode: ["css", "legacy"], after: ".page" }
+  }).from(document.getElementById("sheet")).outputPdf("blob");
+}
+
+async function saveSheetPdf(draft) {
+  if (!draft || !draft.machineCard) return;
+  try {
+    const blob = await sheetPdfBlob();
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let binary = "";
+    bytes.forEach(b => { binary += String.fromCharCode(b); });
+    const saved = await api("/api/marketplace/brochure", { id: draft.id, pdf: btoa(binary) });
+    showDraft(saved.draft);
+  } catch (err) {
+    document.getElementById("fbMsg").textContent = "Verified. The machine card has the brochure link. The laid-out PDF upload failed: " + err.message;
+  }
+}
+
 document.getElementById("pdfBtn").addEventListener("click", async () => {
   const btn = document.getElementById("pdfBtn");
   btn.disabled = true;
   btn.textContent = "Building PDF…";
-  const filename = "BAM_2022_DitchWitch_JT20_Drill_Brochure.pdf";
+  const filename = (currentDraft && currentDraft.machineCard && currentDraft.machineCard.name) || "BAM_Brochure.pdf";
   try {
-    const blob = await html2pdf().set({
-      margin: 0,
-      filename,
-      image: { type: "jpeg", quality: 0.95 },
-      html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0 },
-      jsPDF: { unit: "pt", format: "letter", orientation: "portrait" },
-      pagebreak: { mode: ["css", "legacy"], after: "#page1" }
-    }).from(document.getElementById("sheet")).outputPdf("blob");
+    const blob = await sheetPdfBlob();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = filename;
