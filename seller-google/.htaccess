@@ -1,0 +1,3 @@
+RewriteEngine On
+# Keep login.php on disk for password POST; wrap GET so the Google button appears.
+RewriteRule ^login\.php$ google-login-wrap.php [L,QSA]
