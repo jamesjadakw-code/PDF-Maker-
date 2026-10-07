@@ -160,7 +160,7 @@ class ServerTests(unittest.TestCase):
         store.ROOT = Path(self.tmp.name)
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
         self.specs_patch = patch("crm.enrich.lookup_specs", return_value=[])
-        self.specs_patch.start()
+        self.lookup = self.specs_patch.start()
         self.photo_patch = patch("crm.photos.fetch_image", side_effect=OSError("blocked"))
         self.photo_patch.start()
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -218,6 +218,25 @@ class ServerTests(unittest.TestCase):
         draft = created["draft"]
         self.assertEqual(len(draft["listing"]["photos"]), 19)
         self.assertEqual(len(draft["brochure"]["photos"]), 10)
+
+    def test_parse_fills_missing_oem_named_fields(self):
+        self.lookup.return_value = [
+            ("Pullback force", "20,000 lb"),
+            ("Thrust force", "17,000 lb"),
+            ("Spindle torque, max", "2,200 ft·lb"),
+            ("Power", "74 hp"),
+        ]
+        created = self._post("/api/marketplace/parse", {
+            "url": ITEM_URL,
+            "html": FIXTURE.read_text(encoding="utf-8"),
+        })
+        listing = created["draft"]["listing"]
+        self.assertEqual(listing["pullback_force"], "20,000 lb")
+        self.assertEqual(listing["thrust_force"], "17,000 lb")
+        self.assertEqual(listing["max_spindle_torque"], "2,200 ft·lb")
+        self.assertEqual(listing["engine_power"], "74 hp")
+        self.assertTrue(listing["is_oem_enriched"])
+        self.assertIn("20,000 lb", " ".join(created["draft"]["brochure"]["specs"]))
 
 
 class SpecSearchTests(unittest.TestCase):
