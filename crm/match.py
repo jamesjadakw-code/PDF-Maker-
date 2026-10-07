@@ -177,6 +177,13 @@ def score_pair(draft: dict, lead: dict) -> dict:
         tier = "warm"
     else:
         tier = "cold"
+    packeted = False
+    packet_pdf = ""
+    for packed in lead.get("packets") or []:
+        if packed.get("listingId") == draft.get("id"):
+            packeted = True
+            packet_pdf = packed.get("pdf") or ""
+            break
     return {
         "leadId": lead.get("id") or "",
         "listingId": draft.get("id") or "",
@@ -195,6 +202,8 @@ def score_pair(draft: dict, lead: dict) -> dict:
         "brochurePdf": (draft.get("machineCard") or {}).get("pdf") or "",
         "unitStatus": draft.get("status") or "",
         "leadStatus": lead.get("status") or "",
+        "packeted": packeted,
+        "packetPdf": packet_pdf,
     }
 
 
