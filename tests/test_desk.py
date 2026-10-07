@@ -13,7 +13,7 @@ from crm import store
 from crm.ingest import lead_from_payload
 from crm.leads import upsert_lead
 from crm.marketplace import parse_listing, to_brochure
-from crm.match import rank_buyers, rank_machines, score_pair
+from crm.match import process_marketplace_scrape_matches, rank_buyers, rank_machines, score_pair
 from crm.server import Handler
 
 
@@ -81,6 +81,54 @@ class MatchTests(unittest.TestCase):
         self.assertEqual(buyers[0]["leadId"], hdd["id"])
         machines = rank_machines(hdd, [draft])
         self.assertEqual(machines[0]["listingId"], draft["id"])
+        self.assertEqual(draft["listing"]["source_type"], "facebook")
+        self.assertFalse(draft["listing"]["is_staged"])
+
+    def test_scrape_matcher_skips_staged_and_uses_category_map(self):
+        listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
+        scrape = store.create_draft(listing, to_brochure(listing))
+        staged_listing = dict(listing)
+        staged_listing["is_staged"] = True
+        staged_listing["source_type"] = "staged"
+        staged = store.create_draft(staged_listing, to_brochure(staged_listing))
+        hdd = upsert_lead(_buyer())
+        rows = process_marketplace_scrape_matches([scrape, staged], [hdd])
+        ids = {row["listingId"] for row in rows}
+        self.assertIn(scrape["id"], ids)
+        self.assertNotIn(staged["id"], ids)
+        self.assertEqual(rank_buyers(staged, [hdd]), [])
+        hits = process_marketplace_scrape_matches(
+            [
+                {
+                    "id": "fb1",
+                    "source_type": "facebook",
+                    "model_category": "Directional Drills",
+                    "make": "Ditch Witch",
+                    "model": "JT20",
+                    "price": "$128,500",
+                    "source_platform": "Facebook Marketplace",
+                },
+                {
+                    "id": "st1",
+                    "source_type": "staged",
+                    "is_staged": True,
+                    "model_category": "Directional Drills",
+                    "make": "Ditch Witch",
+                    "model": "JT20",
+                    "price": "$1",
+                },
+            ],
+            [{
+                "id": "lead1",
+                "name": "Ana Ruiz",
+                "phone": "9045550111",
+                "target_machinery_category": "Directional Drills",
+            }],
+        )
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["listingId"], "fb1")
+        self.assertEqual(hits[0]["buyerName"], "Ana Ruiz")
+        self.assertEqual(hits[0]["source"], "Facebook Marketplace")
 
 
 class IngestTests(unittest.TestCase):

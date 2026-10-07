@@ -207,46 +207,154 @@ def score_pair(draft: dict, lead: dict) -> dict:
     }
 
 
-def _pool_for_lead(lead: dict, drafts: list[dict], by_cat: dict[str, list[dict]]) -> list[dict]:
-    want_cat = _category(str((lead.get("want") or {}).get("category") or ""))
-    if want_cat and want_cat in by_cat:
-        return by_cat[want_cat]
-    return drafts
+_STAGED_SOURCES = {"staged", "internal", "original", "bam"}
+_SCRAPE_SOURCES = {
+    "facebook",
+    "marketplace",
+    "scrape",
+    "third-party",
+    "third_party",
+    "machinio",
+    "craigslist",
+    "equipmenttrader",
+}
+
+
+def is_third_party_scrape(item: dict) -> bool:
+    """True only for Marketplace / Machinio / other pulls. Staged BAM stock is out."""
+    listing = item.get("listing") if isinstance(item.get("listing"), dict) else item
+    if item.get("is_staged") is True or listing.get("is_staged") is True:
+        return False
+    source = str(item.get("source_type") or listing.get("source_type") or "").strip().lower()
+    if source in _STAGED_SOURCES:
+        return False
+    if source in _SCRAPE_SOURCES:
+        return True
+    url = str(listing.get("sourceUrl") or "").lower()
+    if "facebook.com" in url or "machinio.com" in url:
+        return True
+    return bool(listing.get("itemId"))
+
+
+def _as_draft(item: dict) -> dict:
+    if isinstance(item.get("listing"), dict):
+        return item
+    listing = dict(item)
+    if not listing.get("title"):
+        listing["title"] = " ".join(
+            part for part in (listing.get("make"), listing.get("model")) if part
+        ).strip()
+    return {
+        "id": item.get("id") or "",
+        "status": item.get("status") or "pending_verification",
+        "listing": listing,
+        "machineCard": item.get("machineCard") or {},
+    }
+
+
+def _map_keys(*values) -> set[str]:
+    keys: set[str] = set()
+    for raw in values:
+        if raw in (None, ""):
+            continue
+        text = str(raw).strip()
+        if not text:
+            continue
+        keys.add(_norm(text))
+        cat = _category(text)
+        if cat:
+            keys.add(cat)
+    keys.discard("")
+    return keys
+
+
+def lead_map_keys(lead: dict) -> set[str]:
+    want = lead.get("want") if isinstance(lead.get("want"), dict) else {}
+    return _map_keys(
+        lead.get("target_machinery_category"),
+        want.get("category"),
+        want.get("model"),
+        " ".join(part for part in (want.get("make"), want.get("model")) if part),
+    )
+
+
+def listing_map_keys(item: dict) -> set[str]:
+    listing = item.get("listing") if isinstance(item.get("listing"), dict) else item
+    fields = machine_fields(listing)
+    return _map_keys(
+        listing.get("model_category"),
+        item.get("model_category"),
+        fields.get("category"),
+        fields.get("model"),
+        " ".join(part for part in (fields.get("make"), fields.get("model")) if part),
+    )
+
+
+def process_marketplace_scrape_matches(listings: list[dict], leads: list[dict]) -> list[dict]:
+    """Lag-free matcher: category map lookup. Ignores staged inventory."""
+    leads_by_category: dict[str, list[dict]] = {}
+    for lead in leads:
+        if (lead.get("status") or "active") != "active":
+            continue
+        for key in lead_map_keys(lead):
+            leads_by_category.setdefault(key, []).append(lead)
+
+    active: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for item in listings:
+        if not is_third_party_scrape(item):
+            continue
+        draft = _as_draft(item)
+        listing = draft.get("listing") or {}
+        fields = machine_fields(listing)
+        bucket: list[dict] = []
+        found: set[str] = set()
+        for key in listing_map_keys(draft):
+            for lead in leads_by_category.get(key) or []:
+                lead_id = str(lead.get("id") or "")
+                if lead_id in found:
+                    continue
+                found.add(lead_id)
+                bucket.append(lead)
+        for lead in bucket:
+            pair = (str(lead.get("id") or ""), str(draft.get("id") or listing.get("id") or ""))
+            if pair in seen:
+                continue
+            seen.add(pair)
+            row = score_pair(draft, lead)
+            row["buyerName"] = lead.get("name") or ""
+            row["buyerContact"] = lead.get("phone") or lead.get("email") or ""
+            row["equipment"] = " ".join(
+                part for part in (fields.get("make"), fields.get("model")) if part
+            ).strip()
+            row["source"] = (
+                listing.get("source_platform")
+                or listing.get("source_type")
+                or "Third-Party Scrape"
+            )
+            active.append(row)
+    return active
 
 
 def rank_all(drafts: list[dict], leads: list[dict], min_score: int = 45, limit: int = 40) -> list[dict]:
-    """Top matches for the desk. Category index avoids a full 1,000 × 3,000 scan."""
-    live_leads = [lead for lead in leads if (lead.get("status") or "active") == "active"]
-    live_drafts = [draft for draft in drafts if draft.get("status") != "dead"]
-    by_cat: dict[str, list[dict]] = {}
-    for draft in live_drafts:
-        cat = _category(machine_fields(draft.get("listing") or {}).get("category") or "")
-        if cat:
-            by_cat.setdefault(cat, []).append(draft)
-    ranked: list[dict] = []
-    for lead in live_leads:
-        want = lead.get("want") or {}
-        if not any(want.get(key) for key in ("category", "make", "model", "keywords", "budgetMax")):
-            continue
-        for draft in _pool_for_lead(lead, live_drafts, by_cat):
-            row = score_pair(draft, lead)
-            if row["score"] >= min_score:
-                ranked.append(row)
+    """Top matches for the desk. Category map; staged units never enter the loop."""
+    ranked = [
+        row for row in process_marketplace_scrape_matches(drafts, leads)
+        if row["score"] >= min_score
+    ]
     ranked.sort(key=lambda row: (-row["score"], row["unitTitle"]))
     return ranked[:limit]
 
 
 def rank_buyers(draft: dict, leads: list[dict], limit: int = 12) -> list[dict]:
-    rows = [
-        score_pair(draft, lead)
-        for lead in leads
-        if (lead.get("status") or "active") == "active"
-    ]
+    if not is_third_party_scrape(draft):
+        return []
+    rows = process_marketplace_scrape_matches([draft], leads)
     rows.sort(key=lambda row: -row["score"])
     return [row for row in rows if row["score"] >= 30][:limit]
 
 
 def rank_machines(lead: dict, drafts: list[dict], limit: int = 12) -> list[dict]:
-    rows = [score_pair(draft, lead) for draft in drafts if draft.get("status") != "dead"]
+    rows = process_marketplace_scrape_matches(drafts, [lead])
     rows.sort(key=lambda row: -row["score"])
     return [row for row in rows if row["score"] >= 30][:limit]
