@@ -158,7 +158,8 @@ class ServerTests(unittest.TestCase):
         os.environ.pop("BAM_CRM_PASSWORD", None)
         os.environ.pop("BAM_CRM_BASE", None)
         store.ROOT = Path(self.tmp.name)
-        self.specs_patch = patch("crm.server.lookup_specs", return_value=[])
+        os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        self.specs_patch = patch("crm.enrich.lookup_specs", return_value=[])
         self.specs_patch.start()
         self.photo_patch = patch("crm.photos.fetch_image", side_effect=OSError("blocked"))
         self.photo_patch.start()
@@ -271,7 +272,8 @@ class PhotoFileTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["BAM_DATA_DIR"] = self.tmp.name
         store.ROOT = Path(self.tmp.name)
-        self.specs_patch = patch("crm.server.lookup_specs", return_value=[])
+        os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        self.specs_patch = patch("crm.enrich.lookup_specs", return_value=[])
         self.specs_patch.start()
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.port = self.httpd.server_address[1]

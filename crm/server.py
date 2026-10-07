@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -16,9 +15,9 @@ from crm.brochure_file import attach_brochure, pdf_path, save_upload
 from crm.desk import matches_for, packet_hot_matches, snapshot
 from crm.ingest import lead_from_payload
 from crm.leads import attach_packet, get_lead, list_leads, upsert_lead
+from crm.enrich import enrich_machine_with_oem_specs
 from crm.marketplace import brochure_photos, marketplace_url, parse_listing, to_brochure
 from crm.photos import photo_path, save_listing_photos
-from crm.specs import lookup_specs, specs_missing
 from crm.store import (
     create_draft,
     find_by_item_id,
@@ -32,7 +31,6 @@ from crm.store import (
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_HTML = 2_000_000
-SPEC_SECONDS = 12
 
 GET_EXACT = {
     "/api/desk": "desk",
@@ -337,15 +335,7 @@ def _file_hidden_draft(draft: dict) -> dict | None:
 
 
 def _fill_oem_specs(listing: dict) -> None:
-    if not specs_missing(listing):
-        listing["specsStatus"] = "ready"
-        return
-    try:
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            listing["oemSpecs"] = pool.submit(lookup_specs, listing).result(timeout=SPEC_SECONDS)
-    except (OSError, ValueError, TimeoutError):
-        listing["oemSpecs"] = []
-    listing["specsStatus"] = "ready" if listing.get("oemSpecs") else "none"
+    enrich_machine_with_oem_specs(listing)
 
 
 def _hold(html: str, url: str) -> dict:
