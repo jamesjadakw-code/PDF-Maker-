@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+from crm.marketplace import display_price, machine_fields
+
 ROOT = Path(os.environ.get("BAM_DATA_DIR", Path(__file__).resolve().parent.parent / "data"))
 
 
@@ -60,20 +62,45 @@ def save_draft(draft: dict) -> dict:
     return draft
 
 
-def list_drafts() -> list[dict]:
-    rows = []
+def iter_drafts():
     for path in sorted(queue_dir().glob("*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
-        draft = json.loads(path.read_text(encoding="utf-8"))
-        listing = draft.get("listing") or {}
-        rows.append({
-            "id": draft["id"],
-            "status": draft["status"],
-            "title": listing.get("title") or "",
-            "price": listing.get("price") or "",
-            "photos": len(listing.get("photos") or []),
-            "createdAt": draft.get("createdAt"),
-        })
-    return rows
+        yield json.loads(path.read_text(encoding="utf-8"))
+
+
+def summarize_draft(draft: dict) -> dict:
+    listing = draft.get("listing") or {}
+    fields = machine_fields(listing)
+    card = draft.get("machineCard") or {}
+    return {
+        "id": draft["id"],
+        "status": draft["status"],
+        "title": listing.get("title") or "",
+        "price": listing.get("price") or "",
+        "ask": listing.get("askingPrice") or "",
+        "displayPrice": display_price(listing),
+        "photos": len(listing.get("photos") or []),
+        "year": fields.get("year") or "",
+        "make": fields.get("make") or "",
+        "model": fields.get("model") or "",
+        "category": fields.get("category") or "",
+        "hours": fields.get("hours") or "",
+        "createdAt": draft.get("createdAt"),
+        "brochurePdf": card.get("pdf") or "",
+        "itemId": listing.get("itemId") or "",
+    }
+
+
+def list_drafts() -> list[dict]:
+    return [summarize_draft(draft) for draft in iter_drafts()]
+
+
+def find_by_item_id(item_id: str) -> dict | None:
+    if not item_id:
+        return None
+    for draft in iter_drafts():
+        if (draft.get("listing") or {}).get("itemId") == item_id:
+            return draft
+    return None
 
 
 def verify_draft(draft_id: str, brochure: dict | None = None) -> dict:
@@ -161,7 +188,7 @@ def post_draft(draft_id: str) -> dict:
         "condition": listing.get("condition"),
         "photos": listing.get("photos") or [],
         "sourceUrl": "",
-        "stock": "",
+        "stock": ((draft.get("website") or {}).get("stock") or ""),
     }
     draft["status"] = "posted"
     draft["postedAt"] = _now()
