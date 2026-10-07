@@ -743,6 +743,12 @@ async function packBrochure(listingId, leadId) {
   if (currentDraft && currentDraft.id === listingId) {
     const matches = await api("/api/matches?listing=" + encodeURIComponent(listingId));
     paintMatches($("unitMatches"), matches.matches || [], "lead");
+    const hit = (matches.matches || []).find(row => row.leadId === pairLeadId);
+    const bar = $("pairBar");
+    if (hit && pairLeadId) {
+      bar.hidden = false;
+      bar.textContent = hit.score + " · " + hit.leadName + (hit.packeted ? " — brochure packed." : " — Prepare PDF packs this buyer.");
+    }
   }
   if (currentLead && currentLead.id === leadId) {
     showLead(data.lead);
