@@ -105,12 +105,96 @@ MANUFACTURER_SPEC_CATALOG = {
             "default_app": "Trenching",
         },
         "rt125": {
-            "base_hp": 131,
-            "tracks": "Quad",
-            "configuration": "Ride-on tractor",
+            "base_hp": 121,
+            "engine": "Cummins F3.8 turbocharged, charge-air cooled",
+            "cylinders": 4,
+            "displacement": "232 in³ / 3.8 L",
+            "rated_speed": "2,200 rpm",
+            "emissions": "EPA Tier 4 Final / EU Stage V",
+            "tracks": "Quad 450x86x42 rubber, chevron",
+            "configuration": "RT125 Quad ride-on tractor",
             "default_app": "Trenching/Plowing",
             "fuel": "Diesel",
             "ground_drive": "Hydrostatic",
+            "attachment_drive": "Hydrostatic",
+            "operating_weight": "15,300 lb",
+            "max_tractor_weight": "27,200 lb",
+            "hydrawheel_max_weight": "33,000 lb",
+            "front_counterweight": "1,300 lb",
+            "side_counterweight": "250 lb each",
+            "dimensions": "166 in L x 89 in W x 120 in H",
+            "wheelbase": "79 in",
+            "tread": "71 in",
+            "ground_clearance": "15.5 in",
+            "approach_angle": "34°",
+            "forward_speed": "6.9 mph",
+            "reverse_speed": "4.0 mph",
+            "turning_circle_front": "42.4 ft",
+            "turning_circle_4ws": "21.6 ft",
+            "fuel_tank": "38 gal",
+            "def_tank": "4.9 gal",
+            "engine_oil": "13.7 qt",
+            "hydraulic_system": "30 gal",
+            "hydraulic_reservoir": "25 gal",
+            "coolant": "4.9 gal",
+            "ground_drive_flow": "45 gpm @ 6,300 psi",
+            "attachment_flow": "44 gpm @ 6,500 psi",
+            "auxiliary_flow": "5.3 gpm @ 3,000 psi",
+            "blade_width": "80 in",
+            "blade_height": "17 in",
+            "blade_lift": "26 in above grade",
+            "blade_drop": "10 in below grade",
+            "operator_noise": "80 dBA",
+            "source": "Ditch Witch RT125 Quad literature 2024",
+            "attachments": {
+                "rocksaw": {
+                    "model": "RS40",
+                    "cut_depth": "40 in",
+                    "trench_width": "4.5 / 6 / 8 in",
+                    "attachment_weight": "5,900 lb",
+                    "token": "rocksaw",
+                },
+                "vibratory plow": {
+                    "model": "VP120Q",
+                    "max_depth": "42 in",
+                    "attachment_weight": "2,600 lb without blade",
+                    "notes": "Front vibratory plow; cover depth depends on blade and soil",
+                    "token": "plow",
+                },
+                "reel": {
+                    "model": "RC30",
+                    "type": "Rear reel carrier",
+                    "reel_diameter": "96 in max",
+                    "internal_width": "54 in",
+                    "capacity": "3,000 lb",
+                    "utility": "Fiber and cable payoff",
+                    "token": "reel",
+                },
+                "reel carrier": {
+                    "model": "RC30",
+                    "type": "Rear reel carrier",
+                    "reel_diameter": "96 in max",
+                    "internal_width": "54 in",
+                    "capacity": "3,000 lb",
+                    "utility": "Fiber and cable payoff",
+                    "token": "reel",
+                },
+                "trencher": {
+                    "model": "CT120H",
+                    "trench_depth": "93 in",
+                    "trench_width": "24 in",
+                    "attachment_weight": "1,750 lb",
+                    "token": "trencher",
+                },
+                "backhoe": {
+                    "model": "BH120",
+                    "dig_depth": "108 in",
+                    "reach": "158 in",
+                    "bucket_width": "12-24 in",
+                    "attachment_weight": "3,300 lb without bucket",
+                    "token": "backhoe",
+                },
+            },
         },
         "attachments": {
             "rocksaw": {
@@ -118,8 +202,6 @@ MANUFACTURER_SPEC_CATALOG = {
                 "token": "rocksaw",
             },
             "vibratory plow": {
-                "max_depth": "42 in",
-                "notes": "Front vibratory plow for cable and conduit",
                 "token": "plow",
             },
             "reel": {
@@ -168,6 +250,7 @@ _BASE_NAMED = (
     ("operating_weight", "operating_weight", "{0}"),
     ("physical_weight", "operating_weight", "{0}"),
     ("physical_length", "dimensions", "{0}"),
+    ("dimensions", "dimensions", "{0}"),
     ("blade_capacity", "bucket_capacity", "{0}"),
 )
 
@@ -215,9 +298,26 @@ def spec_sheet(listing: dict) -> list[dict]:
             ("model", name + " model"),
             ("max_depth", "Plow depth"),
             ("cut_depth", "Saw depth"),
+            ("trench_depth", "Trench depth"),
+            ("trench_width", "Trench width"),
+            ("dig_depth", "Digging depth"),
+            ("reel_diameter", "Reel diameter, max"),
+            ("internal_width", "Reel internal width"),
+            ("capacity", name + " capacity"),
+            ("attachment_weight", name + " weight"),
+            ("reach", "Backhoe reach"),
             ("notes", name + " notes"),
         ):
             add(label, item.get(field))
+        skip = {
+            "token", "attachment_name", "type", "utility", "model", "max_depth",
+            "cut_depth", "trench_depth", "trench_width", "dig_depth", "reel_diameter",
+            "internal_width", "capacity", "attachment_weight", "reach", "notes",
+        }
+        for key, value in item.items():
+            if key in skip:
+                continue
+            add(f"{name} {key.replace('_', ' ')}", value)
     return rows
 
 
@@ -293,19 +393,7 @@ def apply_catalog(listing: dict, ident: dict | None = None) -> dict:
             text = str(row.get(src) or "").strip()
             if text:
                 named.setdefault(dest, text)
-    extra = []
-    for label, key in (
-        ("Undercarriage", "tracks"),
-        ("Configuration", "configuration"),
-        ("Application", "default_app"),
-        ("Application", "application"),
-        ("Fuel", "fuel"),
-        ("Ground drive", "ground_drive"),
-        ("Blade capacity", "blade_capacity"),
-    ):
-        value = hit["payload"].get(key)
-        if value and (label, str(value)) not in extra:
-            extra.append((label, str(value)))
+    extra = _payload_rows(hit["payload"])
     if extra:
         listing["_catalog_rows"] = extra
     return named
@@ -338,7 +426,8 @@ def lookup_catalog(make: str, model: str) -> dict | None:
         if key == "attachments" or not isinstance(row, dict):
             continue
         if _model_matches(compact, key):
-            payload = dict(row)
+            payload = {item: value for item, value in row.items() if item != "attachments"}
+            attachments.update(row.get("attachments") or {})
             family, category = _family_from_payload(row)
             break
     return {
@@ -421,6 +510,63 @@ def _family_from_payload(row: dict) -> tuple[str, str]:
         if needle in blob:
             return family, category
     return "", ""
+
+
+_SKIP_PAYLOAD = {src for src, _dest, _template in _BASE_NAMED}
+
+_PAYLOAD_LABELS = {
+    "engine": "Engine",
+    "cylinders": "Cylinders",
+    "displacement": "Displacement",
+    "rated_speed": "Rated speed",
+    "emissions": "Emissions",
+    "tracks": "Undercarriage",
+    "configuration": "Configuration",
+    "default_app": "Application",
+    "application": "Application",
+    "fuel": "Fuel",
+    "ground_drive": "Ground drive",
+    "attachment_drive": "Attachment drive",
+    "max_tractor_weight": "Allowable tractor weight, max",
+    "hydrawheel_max_weight": "Hydrawheel saws, max weight",
+    "front_counterweight": "Front counterweight",
+    "side_counterweight": "Side counterweight",
+    "wheelbase": "Wheelbase",
+    "tread": "Tread",
+    "ground_clearance": "Ground clearance",
+    "approach_angle": "Approach angle",
+    "forward_speed": "Forward speed, max",
+    "reverse_speed": "Reverse speed, max",
+    "turning_circle_front": "Turning circle, front steer",
+    "turning_circle_4ws": "Turning circle, 4-wheel steer",
+    "fuel_tank": "Fuel tank",
+    "def_tank": "DEF tank",
+    "engine_oil": "Engine oil",
+    "hydraulic_system": "Hydraulic system",
+    "hydraulic_reservoir": "Hydraulic reservoir",
+    "coolant": "Coolant",
+    "ground_drive_flow": "Ground drive pump",
+    "attachment_flow": "Attachment pump",
+    "auxiliary_flow": "Auxiliary pump",
+    "blade_width": "Backfill blade width",
+    "blade_height": "Backfill blade height",
+    "blade_lift": "Blade lift above grade",
+    "blade_drop": "Blade drop below grade",
+    "operator_noise": "Operator noise",
+    "source": "Spec source",
+}
+
+
+def _payload_rows(payload: dict) -> list[tuple[str, str]]:
+    rows = []
+    for key, value in payload.items():
+        if key in _SKIP_PAYLOAD or value is None or value == "" or isinstance(value, (dict, list)):
+            continue
+        label = _PAYLOAD_LABELS.get(key) or key.replace("_", " ").title()
+        text = str(value).strip()
+        if text:
+            rows.append((label, text))
+    return rows
 
 
 def _format_figure(value, template: str) -> str:

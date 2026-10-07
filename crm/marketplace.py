@@ -289,7 +289,7 @@ def to_brochure(listing: dict, pending: bool = True) -> dict:
             for label, value in (listing.get("oemSpecs") or [])
             if str(label).strip() and str(value).strip()
         ]
-    oem = oem[:18]
+    oem = oem[:21]
     specs = [
         ("Year", listing.get("year") or "—"),
         ("Hours", f"{hours}" if hours else "—"),
