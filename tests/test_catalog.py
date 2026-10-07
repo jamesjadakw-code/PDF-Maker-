@@ -195,6 +195,95 @@ class CatalogIngestTests(unittest.TestCase):
         self.assertEqual(out["plow_depth"], "42 in")
         jpeg.unlink(missing_ok=True)
 
+    def test_photo_scan_snaps_lectura_machine_and_fills_specs(self):
+        item = {"title": "Yellow excavator on the lot"}
+        jpeg = Path(tempfile.gettempdir()) / "bam-vision-lectura.jpg"
+        jpeg.write_bytes(b"\xff\xd8\xff\xd9")
+        os.environ["GEMINI_API_KEY"] = "test-key"
+        captured = {}
+        payload = {
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "text": json.dumps({
+                            "make": "CAT",
+                            "model": "320",
+                            "detected_attachments": ["bucket"],
+                        })
+                    }]
+                }
+            }]
+        }
+
+        class FakeResp:
+            def __init__(self, request):
+                captured["body"] = request.data.decode()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps(payload).encode()
+
+        with patch("crm.vision.urlopen", side_effect=lambda req, timeout=None: FakeResp(req)), \
+             patch("crm.enrich.lookup_specs") as lookup:
+            out = process_incoming_third_party_listing(item, image_path=str(jpeg))
+        lookup.assert_not_called()
+        self.assertIn("Caterpillar 320", captured["body"])
+        self.assertIn("Ditch Witch JT20", captured["body"])
+        self.assertIn("Vermeer D20x22 S3", captured["body"])
+        self.assertEqual(out["make"], "Caterpillar")
+        self.assertEqual(out["model"], "320")
+        self.assertEqual(out["spec_profile"], "excavator")
+        self.assertEqual(out["engine_power"], "173 hp")
+        self.assertEqual(out["operating_weight"], "49,604 lb")
+        self.assertEqual(out["bucket_capacity"], "1.57 yd³")
+        self.assertIn("bucket", out["attachments"])
+        jpeg.unlink(missing_ok=True)
+
+    def test_photo_scan_fills_dozer_specs_from_lectura(self):
+        jpeg = Path(tempfile.gettempdir()) / "bam-vision-d6.jpg"
+        jpeg.write_bytes(b"\xff\xd8\xff\xd9")
+        os.environ["GEMINI_API_KEY"] = "test-key"
+        payload = {
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "text": json.dumps({
+                            "make": "Caterpillar",
+                            "model": "D6",
+                            "detected_attachments": [],
+                        })
+                    }]
+                }
+            }]
+        }
+
+        class FakeResp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps(payload).encode()
+
+        with patch("crm.vision.urlopen", return_value=FakeResp()), \
+             patch("crm.enrich.lookup_specs") as lookup:
+            out = process_incoming_third_party_listing({}, image_path=str(jpeg))
+        lookup.assert_not_called()
+        self.assertEqual(out["make"], "Caterpillar")
+        self.assertEqual(out["model"], "D6")
+        self.assertEqual(out["spec_profile"], "dozer")
+        self.assertEqual(out["engine_power"], "215 hp")
+        self.assertEqual(out["operating_weight"], "48,061 lb")
+        self.assertIn("blade", out["dimensions"])
+        jpeg.unlink(missing_ok=True)
+
     def test_vision_without_key_does_not_call_network(self):
         jpeg = Path(tempfile.gettempdir()) / "bam-vision2.jpg"
         jpeg.write_bytes(b"\xff\xd8\xff\xd9")

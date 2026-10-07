@@ -3,13 +3,28 @@ import unittest
 from unittest.mock import patch
 
 from crm.enrich import enrich_machine_with_oem_specs
-from crm.lectura import lookup_lectura
+from crm.lectura import lookup_lectura, roster_lines, snap_identity
 from crm.marketplace import to_brochure
 
 
 class LecturaLookupTests(unittest.TestCase):
     def setUp(self):
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+
+    def test_roster_lists_every_master_machine(self):
+        lines = "\n".join(roster_lines())
+        self.assertIn("Caterpillar 320", lines)
+        self.assertIn("John Deere 310", lines)
+        self.assertIn("Vermeer D20x22 S3", lines)
+        self.assertIn("Ditch Witch JT32", lines)
+        self.assertEqual(len(roster_lines()), 15)
+
+    def test_snap_identity_canonicalizes_cat_320(self):
+        hit = snap_identity("CAT", "320")
+        self.assertEqual(hit["make"], "Caterpillar")
+        self.assertEqual(hit["model"], "320")
+        self.assertEqual(hit["named"]["engine_power"], "173 hp")
+        self.assertEqual(hit["named"]["bucket_capacity"], "1.57 yd³")
 
     def test_jt20_fills_hdd_fields_from_master(self):
         hit = lookup_lectura("Ditch Witch", "JT20")

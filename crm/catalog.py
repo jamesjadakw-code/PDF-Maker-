@@ -441,10 +441,14 @@ def _compile_attachments(detected: list[str], index: dict) -> list[dict]:
 def _merge_visual(listing: dict, visual: dict) -> None:
     if not visual:
         return
-    if visual.get("make") and not str(listing.get("make") or "").strip():
+    canonical = bool(visual.get("lectura_canonical"))
+    if visual.get("make") and (canonical or not str(listing.get("make") or "").strip()):
         listing["make"] = visual["make"]
-    if visual.get("model") and not str(listing.get("model") or "").strip():
+    if visual.get("model") and (canonical or not str(listing.get("model") or "").strip()):
         listing["model"] = visual["model"]
+    if canonical and visual.get("category"):
+        listing["category"] = visual["category"]
+        listing["model_category"] = visual["category"]
     incoming = visual.get("detected_attachments") or visual.get("attachments") or []
     if not incoming:
         return

@@ -96,11 +96,23 @@ def lookup_lectura(make: str, model: str) -> dict | None:
     matches.sort()
     row = matches[0][2]
     return {
+        "make": row.get("make") or "",
+        "model": row.get("model") or "",
         "family": row.get("family") or "",
         "category": row.get("category") or "",
         "named": _named(row),
         "source": "Lectura machinery master",
     }
+
+
+def roster_lines() -> list[str]:
+    """Make/model lines the photo scanner must choose from."""
+    return [f"- {row.get('make')} {row.get('model')} ({row.get('category')})" for row in _rows()]
+
+
+def snap_identity(make: str, model: str) -> dict | None:
+    """Canonical Lectura row for a photo or text guess."""
+    return lookup_lectura(make, model)
 
 
 def _named(row: dict) -> dict:
@@ -119,6 +131,8 @@ def _named(row: dict) -> dict:
         named["thrust_force"] = _lbf(row["thrust_kn"])
     if row.get("torque_nm") is not None:
         named["max_spindle_torque"] = _ftlb(row["torque_nm"])
+    if row.get("blade_width_m") is not None:
+        named["dimensions"] = f"{_ft(row['blade_width_m'])} blade"
     return named
 
 

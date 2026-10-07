@@ -1,4 +1,8 @@
-"""Optional photo+text make/model/attachment read. Off unless GEMINI_API_KEY is set."""
+"""Optional photo+text make/model/attachment read. Off unless GEMINI_API_KEY is set.
+
+The scanner is constrained to the saved Lectura machinery master so a photo
+snaps onto a known unit, then enrich loads that row's specs.
+"""
 
 from __future__ import annotations
 
@@ -11,12 +15,17 @@ from urllib.request import Request, urlopen
 
 VISION_SECONDS = 8
 _MAX_IMAGE = 4_000_000
-_PROMPT = (
+_PROMPT_HEAD = (
     "Analyze this heavy machinery listing image and text payload.\n"
-    "1. Determine the core Manufacturer (e.g., CAT, Deere, Vermeer, Ditch Witch).\n"
+    "1. Determine the core Manufacturer.\n"
     "2. Determine the exact Model designation string.\n"
     "3. Detect and itemize ALL attachments visible or mentioned "
     "(e.g., rocksaws, vibratory plows, buckets, thumbs, backhoes, reels).\n"
+    "Choose make and model from this roster when the photo matches. "
+    "Use the roster's exact model string.\n"
+)
+_PROMPT_TAIL = (
+    "If none match, still return your best make and model.\n"
     'Return JSON only: {"make": "string", "model": "string", "detected_attachments": ["attachment name"]}'
 )
 
@@ -47,12 +56,15 @@ def _detect(path: Path, listing: dict, token: str) -> dict:
     }.get(path.suffix.lower(), "image/jpeg")
     import base64
 
+    from crm.lectura import roster_lines, snap_identity
+
     model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+    roster = "\n".join(roster_lines())
     text = "\n".join(
         part for part in (
             listing.get("title") or "",
             listing.get("description") or "",
-            _PROMPT,
+            _PROMPT_HEAD + roster + "\n" + _PROMPT_TAIL,
         ) if part
     )
     body = json.dumps({
@@ -83,11 +95,20 @@ def _detect(path: Path, listing: dict, token: str) -> dict:
     attachments = parsed.get("detected_attachments") or parsed.get("attachments") or []
     if isinstance(attachments, str):
         attachments = [part.strip() for part in re.split(r"[,;/]", attachments) if part.strip()]
-    return {
-        "make": str(parsed.get("make") or "").strip(),
-        "model": str(parsed.get("model") or "").strip(),
+    make = str(parsed.get("make") or "").strip()
+    model_name = str(parsed.get("model") or "").strip()
+    result = {
+        "make": make,
+        "model": model_name,
         "detected_attachments": [str(item).strip() for item in attachments if str(item).strip()],
     }
+    snapped = snap_identity(make, model_name)
+    if snapped:
+        result["make"] = snapped.get("make") or make
+        result["model"] = snapped.get("model") or model_name
+        result["category"] = snapped.get("category") or ""
+        result["lectura_canonical"] = True
+    return result
 
 
 def _response_text(payload: dict) -> str:
