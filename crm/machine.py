@@ -76,7 +76,7 @@ _CATEGORY_FAMILY = {name.lower(): family for _keys, name, family in _CATEGORIES}
 _ATTACHMENT_PATTERNS = (
     ("rocksaw", r"\b(?:rock\s*-?\s*saw|rocksaw|saw\s+attachment|concrete\s+saw|hydrawheel|h[56]\d{2})\b"),
     ("plow", r"\b(?:vibratory\s+)?plow\b"),
-    ("reel", r"\breel(?:\s+carrier)?\b"),
+    ("reel", r"\b(?:(?:fiber|cable|conduit)\s+)?reel(?:\s+carrier)?\b"),
     ("backhoe", r"\bbackhoe(?:\s+attachment|\s+boom|\s+assembly)?\b"),
     ("bore", r"\b(?:boring\s+attachment|bore\s+attachment)\b"),
     ("thumb", r"\b(?:hydraulic\s+)?thumb\b"),
@@ -274,6 +274,24 @@ def _year(listing: dict, title: str) -> str:
     return match.group(1) if match else raw
 
 
+def make_from_model(model: str) -> str:
+    """RT125 is Ditch Witch. RTX1250 is Vermeer. The X is the whole difference."""
+    compact = re.sub(r"[^a-z0-9]+", "", (model or "").lower())
+    for pattern, brand in (
+        (r"^rtx\d", "Vermeer"),
+        (r"^ctx\d", "Vermeer"),
+        (r"^d\d+x\d", "Vermeer"),
+        (r"^jt\d", "Ditch Witch"),
+        (r"^rt\d", "Ditch Witch"),
+        (r"^ht\d", "Ditch Witch"),
+        (r"^mt\d", "Ditch Witch"),
+        (r"^fx\d", "Ditch Witch"),
+    ):
+        if re.match(pattern, compact):
+            return brand
+    return ""
+
+
 def _make_model(listing: dict, title: str, year: str) -> tuple[str, str]:
     rest = title
     if year and rest.startswith(year):
@@ -289,12 +307,22 @@ def _make_model(listing: dict, title: str, year: str) -> tuple[str, str]:
             parsed_model = rest[len(brand):].strip(" -–")
             break
     parsed_model = re.split(
-        r"\s+(?:horizontal|directional|drill|trencher|excavator|rocksaw|rock\s*saw|plow|with)\b",
+        r"\s+(?:horizontal|directional|drill|trencher|excavator|rocksaw|rock\s*saw|plow|reel|with)\b",
         parsed_model,
         maxsplit=1,
         flags=re.I,
     )[0].strip()
-    return make or parsed_make, model or parsed_model
+    model = model or parsed_model
+    inferred = make_from_model(model)
+    compact = re.sub(r"[^a-z0-9]+", "", (model or "").lower())
+    got = re.sub(r"[^a-z0-9]+", " ", (make or parsed_make).lower()).strip()
+    if inferred == "Ditch Witch" and re.match(r"^rt\d", compact) and not compact.startswith("rtx") and got in {"", "vermeer"}:
+        make = "Ditch Witch"
+    elif inferred == "Vermeer" and compact.startswith("rtx") and "ditch" in got:
+        make = "Vermeer"
+    else:
+        make = make or parsed_make or inferred
+    return make, model
 
 
 def _keyword_category(title: str, description: str) -> tuple[str, str]:

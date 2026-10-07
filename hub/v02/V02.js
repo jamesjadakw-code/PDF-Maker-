@@ -1,6 +1,5 @@
 /* BAM inventory hub — V02 picker. Second option between Command (v01) and Jobsite (v03).
-   V02 is the light Workspace skin (Inter, white cards, indigo #5b5bd6) from
-   bam-crm-revamp-2026-10-04/v02/index.html. Loads V02.css from the same folder.
+   V02 uses the desk font: Arial, gold, ink. Loads V02.css from the same folder.
    Stores the choice in localStorage (bam-hub-theme).
    Does not POST /inventory/api/theme.php — that allow-list is still v01 and v03, and a rejected
    save makes the desk picker revert. Saved account themes stay as they are. */

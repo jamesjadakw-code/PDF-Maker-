@@ -6,8 +6,10 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.error import URLError
 
-from crm.catalog import process_incoming_third_party_listing
+from crm.catalog import lookup_catalog, process_incoming_third_party_listing
 from crm.enrich import enrich_machine_with_oem_specs
+from crm.machine import identify_machine, make_from_model
+from crm.marketplace import to_brochure
 from crm.vision import detect_machine_from_image
 
 
@@ -38,6 +40,65 @@ class CatalogIngestTests(unittest.TestCase):
         self.assertTrue(out["catalog_hit"])
         self.assertFalse(out["is_staged"])
         self.assertEqual(out["source_platform"], "Third-Party Scrape Stream")
+
+    def test_rt125_is_ditch_witch_not_vermeer_rtx(self):
+        self.assertEqual(make_from_model("RT125"), "Ditch Witch")
+        self.assertEqual(make_from_model("RTX1250"), "Vermeer")
+        ident = identify_machine({
+            "title": "Ditch Witch RT125 with vibratory plow and rear reel carrier",
+        })
+        self.assertEqual(ident["make"], "Ditch Witch")
+        self.assertEqual(ident["model"], "RT125")
+        self.assertEqual(ident["family"], "trencher")
+        self.assertIn("plow", ident["attachments"])
+        self.assertIn("reel", ident["attachments"])
+        dw = lookup_catalog("Ditch Witch", "RT125")
+        vm = lookup_catalog("Vermeer", "RT125")
+        self.assertEqual(dw["payload"].get("base_hp"), 121)
+        self.assertFalse(vm["payload"])
+        wrong = identify_machine({"make": "Vermeer", "model": "RT125", "title": "RT125 Quad"})
+        self.assertEqual(wrong["make"], "Ditch Witch")
+
+    def test_rt125_plow_and_reel_show_full_spec_sheet(self):
+        item = {
+            "title": "Ditch Witch RT125 with vibratory plow and rear reel carrier",
+            "description": "Quad tracks laying conduit.",
+        }
+        with patch("crm.enrich.lookup_specs") as lookup:
+            out = process_incoming_third_party_listing(item)
+        lookup.assert_not_called()
+        self.assertEqual(out["make"], "Ditch Witch")
+        self.assertEqual(out["model"], "RT125")
+        self.assertEqual(out["engine_power"], "121 hp")
+        self.assertEqual(out["plow_depth"], "42 in")
+        self.assertEqual(out["operating_weight"], "15,300 lb")
+        self.assertIn("166 in", out["dimensions"])
+        self.assertIn("plow", out["attachments"])
+        self.assertIn("reel", out["attachments"])
+        self.assertFalse(out.get("pullback_force"))
+        labels = {row["label"]: row["value"] for row in out["spec_sheet"]}
+        self.assertEqual(labels["Make"], "Ditch Witch")
+        self.assertEqual(labels["Model"], "RT125")
+        self.assertEqual(labels["Power"], "121 hp")
+        self.assertEqual(labels["Plow depth"], "42 in")
+        self.assertNotIn("Fuel tank", labels)
+        self.assertNotIn("DEF tank", labels)
+        self.assertNotIn("Engine", labels)
+        self.assertLessEqual(len(out["spec_sheet"]), 12)
+        self.assertIn("reel", labels["Attachments"])
+        self.assertIn("VP120Q", labels["Attachments"])
+        models = {row.get("token"): row.get("model") for row in out["compiled_attachments"]}
+        self.assertEqual(models.get("plow"), "VP120Q")
+        self.assertEqual(models.get("reel"), "RC30")
+        brochure = to_brochure(out)
+        self.assertEqual(len(brochure["specs"]), 26)
+        sheet = " ".join(brochure["specs"])
+        self.assertIn("Power | 121 hp", sheet)
+        self.assertIn("Plow depth | 42 in", sheet)
+        self.assertNotIn("DEF tank", sheet)
+        self.assertNotIn("Fuel tank", sheet)
+        filled = [row for row in brochure["specs"] if row.split("|", 1)[0].strip()]
+        self.assertLessEqual(len(filled), 12)
 
     def test_rtx1250_plow_gets_plow_depth_not_pullback(self):
         item = {
@@ -132,6 +193,95 @@ class CatalogIngestTests(unittest.TestCase):
         self.assertIn("plow", out["attachments"])
         self.assertEqual(out["saw_depth"], "18-24 in")
         self.assertEqual(out["plow_depth"], "42 in")
+        jpeg.unlink(missing_ok=True)
+
+    def test_photo_scan_snaps_lectura_machine_and_fills_specs(self):
+        item = {"title": "Yellow excavator on the lot"}
+        jpeg = Path(tempfile.gettempdir()) / "bam-vision-lectura.jpg"
+        jpeg.write_bytes(b"\xff\xd8\xff\xd9")
+        os.environ["GEMINI_API_KEY"] = "test-key"
+        captured = {}
+        payload = {
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "text": json.dumps({
+                            "make": "CAT",
+                            "model": "320",
+                            "detected_attachments": ["bucket"],
+                        })
+                    }]
+                }
+            }]
+        }
+
+        class FakeResp:
+            def __init__(self, request):
+                captured["body"] = request.data.decode()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps(payload).encode()
+
+        with patch("crm.vision.urlopen", side_effect=lambda req, timeout=None: FakeResp(req)), \
+             patch("crm.enrich.lookup_specs") as lookup:
+            out = process_incoming_third_party_listing(item, image_path=str(jpeg))
+        lookup.assert_not_called()
+        self.assertIn("Caterpillar 320", captured["body"])
+        self.assertIn("Ditch Witch JT20", captured["body"])
+        self.assertIn("Vermeer D20x22 S3", captured["body"])
+        self.assertEqual(out["make"], "Caterpillar")
+        self.assertEqual(out["model"], "320")
+        self.assertEqual(out["spec_profile"], "excavator")
+        self.assertEqual(out["engine_power"], "173 hp")
+        self.assertEqual(out["operating_weight"], "49,604 lb")
+        self.assertEqual(out["bucket_capacity"], "1.57 yd³")
+        self.assertIn("bucket", out["attachments"])
+        jpeg.unlink(missing_ok=True)
+
+    def test_photo_scan_fills_dozer_specs_from_lectura(self):
+        jpeg = Path(tempfile.gettempdir()) / "bam-vision-d6.jpg"
+        jpeg.write_bytes(b"\xff\xd8\xff\xd9")
+        os.environ["GEMINI_API_KEY"] = "test-key"
+        payload = {
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "text": json.dumps({
+                            "make": "Caterpillar",
+                            "model": "D6",
+                            "detected_attachments": [],
+                        })
+                    }]
+                }
+            }]
+        }
+
+        class FakeResp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps(payload).encode()
+
+        with patch("crm.vision.urlopen", return_value=FakeResp()), \
+             patch("crm.enrich.lookup_specs") as lookup:
+            out = process_incoming_third_party_listing({}, image_path=str(jpeg))
+        lookup.assert_not_called()
+        self.assertEqual(out["make"], "Caterpillar")
+        self.assertEqual(out["model"], "D6")
+        self.assertEqual(out["spec_profile"], "dozer")
+        self.assertEqual(out["engine_power"], "215 hp")
+        self.assertEqual(out["operating_weight"], "48,061 lb")
+        self.assertIn("blade", out["dimensions"])
         jpeg.unlink(missing_ok=True)
 
     def test_vision_without_key_does_not_call_network(self):

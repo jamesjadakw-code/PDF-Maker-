@@ -255,11 +255,12 @@ class ServerTests(unittest.TestCase):
         })
         listing = created["draft"]["listing"]
         self.assertEqual(listing["pullback_force"], "20,000 lb")
-        self.assertEqual(listing["thrust_force"], "17,000 lb")
-        self.assertEqual(listing["max_spindle_torque"], "2,200 ft·lb")
-        self.assertEqual(listing["engine_power"], "74 hp")
+        self.assertEqual(listing["thrust_force"], "17,100 lb")
+        self.assertEqual(listing["max_spindle_torque"], "2,198 ft·lb")
         self.assertTrue(listing["is_oem_enriched"])
+        self.assertTrue(listing.get("lectura_hit"))
         self.assertIn("20,000 lb", " ".join(created["draft"]["brochure"]["specs"]))
+        self.assertIn("Thrust force | 17,100 lb", created["draft"]["brochure"]["specs"])
 
 
 class SpecSearchTests(unittest.TestCase):

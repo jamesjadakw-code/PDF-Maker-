@@ -276,11 +276,20 @@ def to_brochure(listing: dict, pending: bool = True) -> dict:
     description = re.sub(r"\s*\n\s*", " ", raw_description).strip()
     gate = "Pending verification — not on the website" if pending else "Verified — edit the price"
     status_bits = [condition, f"{hours} Hours" if hours else "", gate]
-    oem = [
-        (str(label).strip(), str(value).strip())
-        for label, value in (listing.get("oemSpecs") or [])
-        if str(label).strip() and str(value).strip()
-    ][:18]
+    skip = {"year", "make", "model", "category", "hours", "make/model", "price", "condition"}
+    oem = []
+    for row in listing.get("spec_sheet") or []:
+        label = str(row.get("label") or "").strip()
+        value = str(row.get("value") or "").strip()
+        if label and value and label.lower() not in skip:
+            oem.append((label, value))
+    if not oem:
+        oem = [
+            (str(label).strip(), str(value).strip())
+            for label, value in (listing.get("oemSpecs") or [])
+            if str(label).strip() and str(value).strip()
+        ]
+    oem = oem[:12]
     specs = [
         ("Year", listing.get("year") or "—"),
         ("Hours", f"{hours}" if hours else "—"),

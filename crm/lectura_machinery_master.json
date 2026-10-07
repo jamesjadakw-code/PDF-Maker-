@@ -1,0 +1,127 @@
+{
+  "crawler_excavators": {
+    "category_url": "https://www.lectura-specs.com/en/specs/construction-machinery/crawler-excavators",
+    "models": [
+      {
+        "make": "Caterpillar",
+        "model": "320",
+        "weight_t": 22.5,
+        "power_kw": 129,
+        "bucket_capacity_m3": 1.2
+      },
+      {
+        "make": "Caterpillar",
+        "model": "330",
+        "weight_t": 30.9,
+        "power_kw": 204,
+        "bucket_capacity_m3": 1.8
+      },
+      {
+        "make": "John Deere",
+        "model": "210G",
+        "weight_t": 21.9,
+        "power_kw": 119,
+        "bucket_capacity_m3": 1.1
+      },
+      {
+        "make": "John Deere",
+        "model": "350P",
+        "weight_t": 35.3,
+        "power_kw": 202,
+        "bucket_capacity_m3": 2.1
+      }
+    ]
+  },
+  "backhoe_loaders": {
+    "category_url": "https://www.lectura-specs.com/en/specs/construction-machinery/backhoe-loaders",
+    "models": [
+      {
+        "make": "Caterpillar",
+        "model": "420",
+        "weight_t": 7.7,
+        "power_kw": 69,
+        "dig_depth_m": 4.36
+      },
+      {
+        "make": "Caterpillar",
+        "model": "430",
+        "weight_t": 8.4,
+        "power_kw": 86,
+        "dig_depth_m": 4.7
+      },
+      {
+        "make": "John Deere",
+        "model": "310",
+        "weight_t": 6.7,
+        "power_kw": 68,
+        "dig_depth_m": 4.3
+      },
+      {
+        "make": "John Deere",
+        "model": "410",
+        "weight_t": 8.1,
+        "power_kw": 84,
+        "dig_depth_m": 4.9
+      }
+    ]
+  },
+  "horizontal_directional_drills": {
+    "category_url": "https://www.lectura-specs.com/en/specs/construction-machinery/horizontal-directional-drills",
+    "models": [
+      {
+        "make": "Vermeer",
+        "model": "D20x22 S3",
+        "pullback_kn": 89,
+        "thrust_kn": 97,
+        "torque_nm": 2983
+      },
+      {
+        "make": "Vermeer",
+        "model": "D24x40 S3",
+        "pullback_kn": 107,
+        "thrust_kn": 107,
+        "torque_nm": 5423
+      },
+      {
+        "make": "Ditch Witch",
+        "model": "JT20",
+        "pullback_kn": 89,
+        "thrust_kn": 76,
+        "torque_nm": 2980
+      },
+      {
+        "make": "Ditch Witch",
+        "model": "JT32",
+        "pullback_kn": 142,
+        "thrust_kn": 142,
+        "torque_nm": 4339
+      }
+    ]
+  },
+  "bulldozers": {
+    "category_url": "https://www.lectura-specs.com/en/specs/construction-machinery/bulldozers",
+    "models": [
+      {
+        "make": "Caterpillar",
+        "model": "D6",
+        "weight_t": 21.8,
+        "power_kw": 160,
+        "blade_width_m": 3.3
+      },
+      {
+        "make": "Caterpillar",
+        "model": "D6N XL",
+        "weight_t": 16.5,
+        "power_kw": 112,
+        "blade_width_m": 3.1
+      },
+      {
+        "make": "John Deere",
+        "model": "700L",
+        "weight_t": 14.1,
+        "power_kw": 101,
+        "blade_width_m": 3.3
+      }
+    ]
+  }
+}

@@ -10,6 +10,8 @@ from pathlib import Path
 
 from crm import store
 
+STAGES = ("Contacted", "Qualified", "Negotiation", "Won")
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -68,7 +70,7 @@ def _clean(payload: dict) -> dict:
     email = str(payload.get("email") or "").strip()
     if not phone and not email:
         raise ValueError("A buyer lead needs a phone or an email.")
-    return {
+    body = {
         "name": name,
         "company": str(payload.get("company") or "").strip(),
         "phone": phone,
@@ -79,6 +81,47 @@ def _clean(payload: dict) -> dict:
         "notes": str(payload.get("notes") or "").strip(),
         "externalId": str(payload.get("externalId") or "").strip(),
     }
+    if "city" in payload:
+        body["city"] = str(payload.get("city") or "").strip()
+    if "state" in payload:
+        body["state"] = str(payload.get("state") or "").strip()
+    return body
+
+
+def touch_lead(lead_id: str, act: str, listing_id: str = "", note: str = "", stage: str = "") -> dict:
+    """Record a match-inbox action on the buyer. Quote packing stays in the server."""
+    labels = {
+        "text": "Text sent",
+        "email": "Email sent",
+        "call": "Call logged",
+        "quote": "Quote sheet prepared",
+        "link": "Linked to unit",
+        "stage": "Stage changed",
+    }
+    if act not in labels:
+        raise ValueError("Unknown desk action.")
+    lead = get_lead(lead_id)
+    if act == "stage":
+        if stage in STAGES:
+            lead["stage"] = stage
+        else:
+            current = lead.get("stage") if lead.get("stage") in STAGES else STAGES[0]
+            lead["stage"] = STAGES[(STAGES.index(current) + 1) % len(STAGES)]
+        note = note or f"Stage set to {lead['stage']}"
+    elif act == "link":
+        if not listing_id:
+            raise ValueError("Choose a unit before linking.")
+        lead["linked"] = listing_id
+        note = note or "Linked to unit"
+    else:
+        note = note or labels[act]
+    if not lead.get("stage"):
+        lead["stage"] = STAGES[0]
+    activity = list(lead.get("activity") or [])
+    activity.insert(0, {"msg": note, "at": _now(), "act": act, "listingId": listing_id})
+    lead["activity"] = activity[:40]
+    lead["updatedAt"] = _now()
+    return save_lead(lead)
 
 
 def iter_leads():
@@ -103,6 +146,12 @@ def summarize_lead(lead: dict) -> dict:
         "hoursMax": want.get("hoursMax"),
         "createdAt": lead.get("createdAt"),
         "packets": len(lead.get("packets") or []),
+        "stage": lead.get("stage") or "Contacted",
+        "linked": lead.get("linked") or "",
+        "city": lead.get("city") or "",
+        "state": lead.get("state") or "",
+        "notes": lead.get("notes") or "",
+        "activity": list(lead.get("activity") or [])[:5],
     }
 
 

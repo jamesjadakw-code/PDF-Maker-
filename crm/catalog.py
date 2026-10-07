@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 
-from crm.machine import identify_machine, spec_fields_for
+from crm.machine import SPEC_FIELDS, identify_machine, spec_fields_for
 
 # Pre-seeded baseline figures. Keys are compact make / compact model.
 MANUFACTURER_SPEC_CATALOG = {
@@ -104,6 +104,98 @@ MANUFACTURER_SPEC_CATALOG = {
             "configuration": "Ride-on trencher",
             "default_app": "Trenching",
         },
+        "rt125": {
+            "base_hp": 121,
+            "engine": "Cummins F3.8 turbocharged, charge-air cooled",
+            "cylinders": 4,
+            "displacement": "232 in³ / 3.8 L",
+            "rated_speed": "2,200 rpm",
+            "emissions": "EPA Tier 4 Final / EU Stage V",
+            "tracks": "Quad 450x86x42 rubber, chevron",
+            "configuration": "RT125 Quad ride-on tractor",
+            "default_app": "Trenching/Plowing",
+            "fuel": "Diesel",
+            "ground_drive": "Hydrostatic",
+            "attachment_drive": "Hydrostatic",
+            "operating_weight": "15,300 lb",
+            "max_tractor_weight": "27,200 lb",
+            "hydrawheel_max_weight": "33,000 lb",
+            "front_counterweight": "1,300 lb",
+            "side_counterweight": "250 lb each",
+            "dimensions": "166 in L x 89 in W x 120 in H",
+            "wheelbase": "79 in",
+            "tread": "71 in",
+            "ground_clearance": "15.5 in",
+            "approach_angle": "34°",
+            "forward_speed": "6.9 mph",
+            "reverse_speed": "4.0 mph",
+            "turning_circle_front": "42.4 ft",
+            "turning_circle_4ws": "21.6 ft",
+            "fuel_tank": "38 gal",
+            "def_tank": "4.9 gal",
+            "engine_oil": "13.7 qt",
+            "hydraulic_system": "30 gal",
+            "hydraulic_reservoir": "25 gal",
+            "coolant": "4.9 gal",
+            "ground_drive_flow": "45 gpm @ 6,300 psi",
+            "attachment_flow": "44 gpm @ 6,500 psi",
+            "auxiliary_flow": "5.3 gpm @ 3,000 psi",
+            "blade_width": "80 in",
+            "blade_height": "17 in",
+            "blade_lift": "26 in above grade",
+            "blade_drop": "10 in below grade",
+            "operator_noise": "80 dBA",
+            "source": "Ditch Witch RT125 Quad literature 2024",
+            "attachments": {
+                "rocksaw": {
+                    "model": "RS40",
+                    "cut_depth": "40 in",
+                    "trench_width": "4.5 / 6 / 8 in",
+                    "attachment_weight": "5,900 lb",
+                    "token": "rocksaw",
+                },
+                "vibratory plow": {
+                    "model": "VP120Q",
+                    "max_depth": "42 in",
+                    "attachment_weight": "2,600 lb without blade",
+                    "notes": "Front vibratory plow; cover depth depends on blade and soil",
+                    "token": "plow",
+                },
+                "reel": {
+                    "model": "RC30",
+                    "type": "Rear reel carrier",
+                    "reel_diameter": "96 in max",
+                    "internal_width": "54 in",
+                    "capacity": "3,000 lb",
+                    "utility": "Fiber and cable payoff",
+                    "token": "reel",
+                },
+                "reel carrier": {
+                    "model": "RC30",
+                    "type": "Rear reel carrier",
+                    "reel_diameter": "96 in max",
+                    "internal_width": "54 in",
+                    "capacity": "3,000 lb",
+                    "utility": "Fiber and cable payoff",
+                    "token": "reel",
+                },
+                "trencher": {
+                    "model": "CT120H",
+                    "trench_depth": "93 in",
+                    "trench_width": "24 in",
+                    "attachment_weight": "1,750 lb",
+                    "token": "trencher",
+                },
+                "backhoe": {
+                    "model": "BH120",
+                    "dig_depth": "108 in",
+                    "reach": "158 in",
+                    "bucket_width": "12-24 in",
+                    "attachment_weight": "3,300 lb without bucket",
+                    "token": "backhoe",
+                },
+            },
+        },
         "attachments": {
             "rocksaw": {
                 "notes": "Saw depth depends on the mounted wheel",
@@ -113,6 +205,13 @@ MANUFACTURER_SPEC_CATALOG = {
                 "token": "plow",
             },
             "reel": {
+                "type": "Rear reel carrier",
+                "utility": "Fiber and cable payoff",
+                "token": "reel",
+            },
+            "reel carrier": {
+                "type": "Rear reel carrier",
+                "utility": "Fiber and cable payoff",
                 "token": "reel",
             },
         },
@@ -151,6 +250,7 @@ _BASE_NAMED = (
     ("operating_weight", "operating_weight", "{0}"),
     ("physical_weight", "operating_weight", "{0}"),
     ("physical_length", "dimensions", "{0}"),
+    ("dimensions", "dimensions", "{0}"),
     ("blade_capacity", "bucket_capacity", "{0}"),
 )
 
@@ -161,6 +261,48 @@ _ATTACH_NAMED = (
     ("max_dig_depth", "digging_depth", "backhoe"),
     ("capacity", "bucket_capacity", "bucket"),
 )
+
+
+def spec_sheet(listing: dict) -> list[dict]:
+    """Brochure-facing identity and CRM spec fields. Extra catalog keys stay off the sheet."""
+    ident = identify_machine(listing)
+    rows: list[dict] = []
+    seen: set[str] = set()
+
+    def add(label: str, value) -> None:
+        text = str(value or "").strip()
+        if not text or text.upper() in {"N/A", "NA", "NONE"}:
+            return
+        key = re.sub(r"[^a-z0-9]+", "", label.lower())
+        if not key or key in seen:
+            return
+        seen.add(key)
+        rows.append({"label": label, "value": text})
+
+    add("Year", listing.get("year") or ident.get("year"))
+    add("Make", ident.get("make") or listing.get("make"))
+    add("Model", ident.get("model") or listing.get("model"))
+    add("Category", ident.get("category") or listing.get("category"))
+    add("Hours", listing.get("hours"))
+    allowed = spec_fields_for(ident.get("family") or "other", ident.get("attachments") or listing.get("attachments") or [])
+    for key, label, _needles, _wire, _families, _needed in SPEC_FIELDS:
+        if key in allowed:
+            add(label, listing.get(key))
+    for label, value in listing.get("oemSpecs") or []:
+        from crm.machine import field_for_label
+
+        if field_for_label(str(label), allowed):
+            add(str(label), value)
+    names = []
+    for item in listing.get("compiled_attachments") or []:
+        token = str(item.get("token") or item.get("attachment_name") or "").strip()
+        model = str(item.get("model") or "").strip()
+        names.append(f"{model} {token}".strip() if model else token)
+    if not names:
+        names = [str(item) for item in (ident.get("attachments") or listing.get("attachments") or []) if item]
+    if names:
+        add("Attachments", ", ".join(names))
+    return rows
 
 
 def process_incoming_third_party_listing(listing: dict, image_path: str | None = None, fetcher=None) -> dict:
@@ -235,19 +377,6 @@ def apply_catalog(listing: dict, ident: dict | None = None) -> dict:
             text = str(row.get(src) or "").strip()
             if text:
                 named.setdefault(dest, text)
-    extra = []
-    for label, key in (
-        ("Undercarriage", "tracks"),
-        ("Configuration", "configuration"),
-        ("Application", "default_app"),
-        ("Application", "application"),
-        ("Blade capacity", "blade_capacity"),
-    ):
-        value = hit["payload"].get(key)
-        if value and (label, str(value)) not in extra:
-            extra.append((label, str(value)))
-    if extra:
-        listing["_catalog_rows"] = extra
     return named
 
 
@@ -278,7 +407,8 @@ def lookup_catalog(make: str, model: str) -> dict | None:
         if key == "attachments" or not isinstance(row, dict):
             continue
         if _model_matches(compact, key):
-            payload = dict(row)
+            payload = {item: value for item, value in row.items() if item != "attachments"}
+            attachments.update(row.get("attachments") or {})
             family, category = _family_from_payload(row)
             break
     return {
@@ -311,10 +441,14 @@ def _compile_attachments(detected: list[str], index: dict) -> list[dict]:
 def _merge_visual(listing: dict, visual: dict) -> None:
     if not visual:
         return
-    if visual.get("make") and not str(listing.get("make") or "").strip():
+    canonical = bool(visual.get("lectura_canonical"))
+    if visual.get("make") and (canonical or not str(listing.get("make") or "").strip()):
         listing["make"] = visual["make"]
-    if visual.get("model") and not str(listing.get("model") or "").strip():
+    if visual.get("model") and (canonical or not str(listing.get("model") or "").strip()):
         listing["model"] = visual["model"]
+    if canonical and visual.get("category"):
+        listing["category"] = visual["category"]
+        listing["model_category"] = visual["category"]
     incoming = visual.get("detected_attachments") or visual.get("attachments") or []
     if not incoming:
         return
@@ -346,8 +480,13 @@ def _model_matches(compact: str, key: str) -> bool:
         return False
     if compact == token:
         return True
+    # RT125 is not RTX1250. Require a letter suffix (420F), never a digit slip.
     rest = compact[len(token):] if compact.startswith(token) else ""
-    return bool(rest) and rest[0].isalpha()
+    if not rest or not rest[0].isalpha():
+        return False
+    if token.startswith("rt") and not token.startswith("rtx") and compact.startswith("rtx"):
+        return False
+    return True
 
 
 def _family_from_payload(row: dict) -> tuple[str, str]:

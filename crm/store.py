@@ -91,10 +91,43 @@ def iter_drafts():
         yield json.loads(path.read_text(encoding="utf-8"))
 
 
+def _place(location: str) -> tuple[str, str]:
+    text = (location or "").strip()
+    if "," not in text:
+        return text, ""
+    city, state = text.rsplit(",", 1)
+    return city.strip(), state.strip()
+
+
+def _sheet_value(listing: dict, *labels: str) -> str:
+    wanted = {label.lower() for label in labels}
+    for row in listing.get("spec_sheet") or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("label") or "").lower() in wanted:
+            return str(row.get("value") or "")
+    return ""
+
+
+def _thumb(listing: dict) -> str:
+    photos = listing.get("photos") or []
+    local = ""
+    for photo in photos:
+        src = str(photo or "")
+        if src.startswith("/api/marketplace/photo/"):
+            return src
+        if src and not local:
+            local = src
+    return local
+
+
 def summarize_draft(draft: dict) -> dict:
     listing = draft.get("listing") or {}
     fields = machine_fields(listing)
     card = draft.get("machineCard") or {}
+    city, state = _place(listing.get("location") or "")
+    attachments = fields.get("attachments") or listing.get("attachments") or []
+    track = _sheet_value(listing, "Attachments") or ", ".join(str(item) for item in attachments if item)
     return {
         "id": draft["id"],
         "status": draft["status"],
@@ -103,11 +136,17 @@ def summarize_draft(draft: dict) -> dict:
         "ask": listing.get("askingPrice") or "",
         "displayPrice": display_price(listing),
         "photos": len(listing.get("photos") or []),
+        "thumb": _thumb(listing),
         "year": fields.get("year") or "",
         "make": fields.get("make") or "",
         "model": fields.get("model") or "",
         "category": fields.get("category") or "",
         "hours": fields.get("hours") or "",
+        "city": city,
+        "state": state,
+        "location": listing.get("location") or "",
+        "engine": _sheet_value(listing, "Power", "Engine"),
+        "track": track,
         "createdAt": draft.get("createdAt"),
         "brochurePdf": card.get("pdf") or "",
         "itemId": listing.get("itemId") or "",
@@ -115,6 +154,7 @@ def summarize_draft(draft: dict) -> dict:
         "is_staged": bool(listing.get("is_staged")),
         "source_platform": listing.get("source_platform") or "",
         "model_category": listing.get("model_category") or fields.get("category") or "",
+        "fresh": draft.get("status") == "pending_verification" and not listing.get("is_staged"),
     }
 
 

@@ -10,9 +10,9 @@ from crm.machine import identify_machine, spec_fields_for, spec_query
 
 def _unit(**extra):
     item = {
-        "title": "2019 Ditch Witch JT20 Horizontal Drill",
+        "title": "2019 Ditch Witch JT60 Horizontal Drill",
         "make": "Ditch Witch",
-        "model": "JT20",
+        "model": "JT60",
         "category": "Directional Drill",
         "description": "Used JT20 with trailer.",
     }
@@ -95,7 +95,7 @@ class EnrichTests(unittest.TestCase):
             out = enrich_machine_with_oem_specs(item)
         self.assertIs(out, item)
         self.assertFalse(out["is_oem_enriched"])
-        self.assertEqual(out["model"], "JT20")
+        self.assertEqual(out["model"], "JT60")
 
     def test_wire_payload_maps_onto_schema_fields(self):
         os.environ["ANAKIN_WIRE_API_KEY"] = "test-key"
