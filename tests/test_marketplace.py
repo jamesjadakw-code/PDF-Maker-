@@ -108,6 +108,12 @@ class QueueTests(unittest.TestCase):
         draft = store.create_draft(listing, to_brochure(listing))
         self.assertEqual(draft["listing"]["price"], "")
         self.assertEqual(draft["listing"]["askingPrice"], "$128,500")
+        queued = store.list_drafts()
+        self.assertEqual(queued[0]["displayPrice"], "$128,500")
+        self.assertEqual(queued[0]["price"], "")
+        self.assertEqual(queued[0]["ask"], "$128,500")
+        self.assertEqual(queued[0]["make"], "Ditch Witch")
+        self.assertEqual(queued[0]["model"], "JT20")
         edited = to_brochure(listing)
         edited["priceLine"] = "PRICE: $149,000  •  +1-904-767-5232  •  sales@bigassmotors.com"
         with self.assertRaises(PermissionError):

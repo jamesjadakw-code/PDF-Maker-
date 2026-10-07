@@ -3,58 +3,99 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>BAM Brochure — 2022 Ditch Witch JT20</title>
+<title>BAM Desk</title>
 <style>
-  :root { --gold:#F5C518; --ink:#111111; --muted:#555555; --cream:#FFF8DC; }
+  :root {
+    --gold:#F5C518; --ink:#111111; --muted:#555555; --cream:#FFF8DC;
+    --bg:#fbfbfc; --card:#fff; --line:#ececf0; --tx:#1c1d22; --dim:#6f7180;
+    --ac:#5b5bd6; --acs:#eeeefc; --good:#18a957; --warn:#d97706; --bad:#e5484d;
+    --font:"Inter",system-ui,sans-serif;
+  }
   * { box-sizing: border-box; }
-  html, body { margin:0; padding:0; }
+  html, body { margin:0; padding:0; height:100%; }
   body {
-    font-family: Arial, Helvetica, "Liberation Sans", sans-serif;
-    background:#e7e5e0;
-    color:var(--ink);
-    display:flex;
-    min-height:100vh;
+    font:13px/1.45 var(--font);
+    background:var(--bg); color:var(--tx);
+    display:flex; flex-direction:column; min-height:100vh;
   }
-  aside {
-    width:340px; flex:0 0 340px; background:#111; color:#fff;
-    padding:18px 16px 28px; position:sticky; top:0; height:100vh; overflow:auto;
+  .bar {
+    flex:0 0 auto; display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+    padding:10px 12px; background:#fff; border-bottom:1px solid var(--line);
   }
-  aside h1 { font-size:16px; letter-spacing:.5px; margin:0 0 2px; }
-  aside .sub { color:var(--gold); font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:14px; }
-  aside label { display:block; font-size:9px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:#aaa; margin:10px 0 4px; }
-  aside input, aside textarea {
-    width:100%; background:#1c1c1c; color:#fff; border:1px solid #333; border-radius:4px;
-    padding:7px 8px; font:12px/1.35 Arial, Helvetica, sans-serif;
+  .bar .mark { font:650 14px/1 var(--font); letter-spacing:-.02em; margin-right:6px; }
+  .bar .mark span { color:var(--ac); font-weight:650; }
+  .bar input, .bar textarea, .bar select, .detail input, .detail textarea, .detail select {
+    background:#fff; border:1px solid #e2e2e8; color:var(--tx); border-radius:8px;
+    padding:8px 10px; font:500 13px/1.3 var(--font);
   }
-  aside textarea { resize:vertical; }
-  aside input:focus, aside textarea:focus { outline:1px solid var(--gold); border-color:var(--gold); }
-  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  button.export {
-    width:100%; margin-top:16px; background:var(--gold); color:#111; border:0; border-radius:6px;
-    font-weight:800; letter-spacing:1px; text-transform:uppercase; padding:12px; cursor:pointer;
+  .bar input:focus, .detail input:focus, .detail textarea:focus {
+    outline:0; border-color:var(--ac); box-shadow:0 0 0 3px #5b5bd622;
   }
-  button.ghost, a.ghost {
-    width:100%; margin-top:8px; background:transparent; color:#fff; border:1px solid #444;
-    border-radius:6px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; padding:10px; cursor:pointer; font-size:11px;
+  #fbUrl { flex:1 1 280px; min-width:200px; height:40px; }
+  #q { flex:0 1 220px; height:40px; }
+  .bar button, .detail button, .ghost, .export {
+    min-height:40px; padding:8px 12px; border-radius:8px; cursor:pointer;
+    font:550 13px/1 var(--font); border:1px solid #e2e2e8; background:#fff; color:var(--tx);
   }
+  .export, .btn-ac { background:var(--ac); border-color:var(--ac); color:#fff; }
+  .export:hover, .btn-ac:hover { background:#4f4fc4; }
   button:disabled { opacity:.45; cursor:not-allowed; }
-  .mp { border:1px solid #333; border-radius:8px; padding:10px; margin-bottom:14px; }
-  .mp h2 { font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--gold); margin:0 0 8px; }
-  #queue { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
-  .qitem { text-align:left; background:#1c1c1c; color:#fff; border:1px solid #333; border-radius:4px; padding:6px 8px; cursor:pointer; font-size:11px; }
-  .qitem b { display:block; }
-  .qitem em { color:var(--gold); font-style:normal; font-size:10px; }
+  .counts { color:var(--dim); font:550 12px/1 var(--font); margin-left:auto; }
+  .paste { margin:0; padding:0 12px; background:#fff; border-bottom:1px solid var(--line); }
+  .paste summary { cursor:pointer; color:var(--dim); font:550 11px/28px var(--font); }
+  .paste textarea { width:100%; min-height:64px; margin:0 0 8px; }
+  .split { flex:1; min-height:0; display:grid; grid-template-columns:minmax(300px,38%) 1fr; }
+  .list { overflow:auto; background:#f6f6f8; border-right:1px solid var(--line); }
+  .filters { display:flex; gap:6px; padding:10px; position:sticky; top:0; background:#f6f6f8; z-index:1; }
+  .filters button { min-height:32px; padding:6px 10px; font-size:12px; }
+  .filters button.on { background:var(--acs); border-color:var(--ac); color:var(--ac); }
+  .row {
+    display:grid; grid-template-columns:64px 1fr auto; gap:8px; align-items:center;
+    width:100%; text-align:left; padding:8px 10px; border:0; border-bottom:1px solid var(--line);
+    background:transparent; border-radius:0; min-height:56px;
+  }
+  .row:hover { background:#fff; }
+  .row.on { background:#fff; box-shadow:inset 3px 0 0 var(--ac); }
+  .row b { display:block; font:650 13px/1.25 var(--font); }
+  .row em { color:var(--dim); font-style:normal; font-size:11px; }
+  .row .score { font:700 14px/1 var(--font); color:var(--ac); }
+  .pill { display:inline-block; padding:2px 7px; border-radius:20px; font:550 10px/1.2 var(--font); }
+  .pill.pending_verification { background:#fdf3e2; color:#9a5b08; }
+  .pill.verified { background:#eeeefc; color:#3d3dae; }
+  .pill.posted { background:#e7f7ee; color:#11683a; }
+  .pill.hot { background:#eeeefc; color:var(--ac); }
+  .pill.warm { background:#fdf3e2; color:var(--warn); }
+  .detail { overflow:auto; padding:16px 18px 48px; }
+  .empty { color:var(--dim); max-width:420px; padding:24px 8px; }
+  .head { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-start; justify-content:space-between; }
+  .head h1 { margin:0; font:650 20px/1.2 var(--font); letter-spacing:-.02em; }
+  .actions { display:flex; flex-wrap:wrap; gap:6px; }
+  .meta { color:var(--dim); margin:6px 0 12px; }
   #verifyBanner {
-    width:612pt; margin:0 auto 12px; background:#111; color:#fff; border:2pt solid var(--gold);
-    padding:8px 12px; font-size:12px; font-weight:700;
+    background:#111; color:#fff; border:2px solid var(--gold); padding:8px 12px;
+    font:700 12px/1.3 var(--font); margin:0 0 12px;
   }
   #verifyBanner.ok { background:#143018; }
-  .photo-grid { position:absolute; left:36pt; top:210pt; width:540pt; display:grid; grid-template-columns:1fr 1fr 1fr; gap:10pt; }
-  .photo-grid .frame { position:relative; left:auto; top:auto; width:auto; height:150pt; }
-  .hint { font-size:10px; color:#888; line-height:1.4; margin-top:8px; }
-  main { flex:1; overflow:auto; padding:28px 20px 60px; }
-  .stack { width:612pt; margin:0 auto; display:flex; flex-direction:column; gap:22px; }
+  #verifyBanner[hidden], #unitPane[hidden], #leadPane[hidden], #sheet[hidden] { display:none !important; }
+  .match-list { display:flex; flex-direction:column; gap:6px; margin:12px 0 16px; }
+  .match {
+    display:flex; justify-content:space-between; gap:10px; align-items:center;
+    background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 10px; cursor:pointer;
+  }
+  .match:hover { border-color:#cfcfd8; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .lead-form label, .sheet-edit label {
+    display:block; font:550 10px/1 var(--font); letter-spacing:.06em; text-transform:uppercase;
+    color:var(--dim); margin:10px 0 4px;
+  }
+  .lead-form input, .lead-form textarea, .sheet-edit input, .sheet-edit textarea { width:100%; }
+  .hint { font-size:11px; color:var(--dim); line-height:1.4; }
+  details.sheet-edit { margin:12px 0 20px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px 12px; }
+  details.sheet-edit summary { cursor:pointer; font:650 13px/2 var(--font); }
+  a.ghost { display:inline-flex; align-items:center; text-decoration:none; }
 
+  /* Printable brochure — unchanged letter geometry */
+  main.detail .stack { width:612pt; margin:0 auto; display:flex; flex-direction:column; gap:22px; }
   .page {
     width:612pt; height:792pt; background:#fff; position:relative; overflow:hidden;
     box-shadow:0 10px 28px rgba(0,0,0,.18); color:var(--ink);
@@ -108,270 +149,249 @@
   .cta .phone { font-size:14pt; font-weight:700; }
   .cta .web { font-size:8pt; }
   .fine { position:absolute; left:36pt; width:540pt; text-align:center; color:var(--muted); font-size:6.5pt; line-height:8.6pt; }
+  .photo-grid { position:absolute; left:36pt; top:210pt; width:540pt; display:grid; grid-template-columns:1fr 1fr 1fr; gap:10pt; }
+  .photo-grid .frame { position:relative; left:auto; top:auto; width:auto; height:150pt; }
 
+  @media (max-width: 960px) {
+    .split { grid-template-columns:1fr; }
+    .list { max-height:38vh; border-right:0; border-bottom:1px solid var(--line); }
+  }
   @media print {
     @page { size:letter; margin:0; }
-    aside, .no-print { display:none !important; }
+    .bar, .paste, .list, .no-print, .sheet-edit, .match-list, .head .actions, #verifyBanner { display:none !important; }
     body { display:block; background:#fff; }
-    main { padding:0; overflow:visible; }
+    .split, .detail { display:block; overflow:visible; padding:0; }
     .stack { gap:0; width:auto; margin:0; }
     .page { box-shadow:none; page-break-after:always; break-after:page; }
+    #sheet, #unitPane { display:block !important; }
   }
 </style>
 </head>
 <body>
-<aside class="no-print">
-  <h1>BIG ASS MOTORS</h1>
-  <div class="sub">CRM brochure intake</div>
-  <div class="mp">
-    <h2>Facebook Marketplace</h2>
-    <label>Listing URL</label>
-    <input id="fbUrl" placeholder="https://www.facebook.com/marketplace/item/…" />
-    <button class="export" id="fbScrape" type="button">Extract photos &amp; info</button>
-    <label>If Facebook blocks the fetch, paste the page HTML</label>
-    <textarea id="fbHtml" rows="3" placeholder="View source of the Marketplace item, then paste it here"></textarea>
-    <button class="ghost" id="fbParse" type="button">Extract from pasted page</button>
-    <p class="hint" id="fbMsg">Imports stay off the website until you verify the brochure.</p>
-    <div id="queue"></div>
-    <button class="ghost" id="fbVerify" type="button" disabled>Verify listing</button>
-    <button class="export" id="fbPost" type="button" disabled>File hidden CRM draft</button>
-    <div id="machineCard" hidden>
-      <h2>Machine card</h2>
-      <p class="hint" id="cardNote"></p>
-      <a class="ghost" id="cardPdf" href="#" style="display:block;text-align:center;text-decoration:none;">Download BAM brochure PDF</a>
-    </div>
-  </div>
-  <label>Page 1 title</label>
-  <input id="inTitle" />
-  <label>Subtitle</label>
-  <input id="inSub" />
-  <label>Status bar</label>
-  <input id="inStatus" />
-  <label>Unit description</label>
-  <textarea id="inDesc" rows="5"></textarea>
-  <div class="row2">
-    <div>
-      <label>Key highlights</label>
-      <textarea id="inHigh" rows="8"></textarea>
-    </div>
-    <div>
-      <label>What's included</label>
-      <textarea id="inInc" rows="8"></textarea>
-    </div>
-  </div>
-  <label>Price bar <span class="hint" id="priceHint">Locked until verification. Then edit the selling price.</span></label>
-  <input id="inPrice" />
-  <label>Page 2 title</label>
-  <input id="inP2" />
-  <label>Spec heading</label>
-  <input id="inSpecHead" />
-  <label>Specs — one per line, Label | Value (13 left, then 13 right)</label>
-  <textarea id="inSpecs" rows="8"></textarea>
-  <label>Condition &amp; service notes</label>
-  <textarea id="inCond" rows="4"></textarea>
-  <label>Ready line</label>
-  <input id="inReady" />
-  <div class="row2">
-    <div><label>Lock line</label><input id="inLock" /></div>
-    <div><label>Phone</label><input id="inPhone" /></div>
-  </div>
-  <label>Email line</label>
-  <input id="inWeb" />
-  <p class="hint">Click any photo on the sheet to replace it. Layout, type, and colors follow the 2022 JT20 letter brochure.</p>
-  <button class="export" id="pdfBtn" type="button">Save PDF</button>
-  <button class="ghost" type="button" onclick="window.print()">Print / Save as PDF</button>
-</aside>
+<header class="bar">
+  <div class="mark">BAM <span>Desk</span></div>
+  <input id="fbUrl" placeholder="Facebook Marketplace item URL" />
+  <button class="export" id="fbExtract" type="button">Extract</button>
+  <input id="q" placeholder="Search desk" />
+  <span class="counts" id="counts"></span>
+</header>
+<details class="paste no-print">
+  <summary>Facebook blocked the fetch — paste listing HTML</summary>
+  <textarea id="fbHtml" rows="3" placeholder="View source of the Marketplace item, then paste it here"></textarea>
+</details>
 
-<main>
-  <div id="verifyBanner" class="no-print" hidden>Pending verification. This listing is not on the website.</div>
-  <div class="stack" id="sheet">
-    <section class="page" id="page1">
-      <img class="logo" src="assets/logo.jpg" alt="Big Ass Motors" />
-      <div class="brand">
-        <div class="name">BIG ASS MOTORS</div>
-        <div class="line">NORTH AMERICA'S HEAVY EQUIPMENT AUTHORITY</div>
-        <div class="line">EST. 2012 &nbsp;•&nbsp; FAMILY OWNED &amp; OPERATED</div>
-        <div class="line">JACKSONVILLE, FL &nbsp;32205</div>
-        <div class="line">PHONE &nbsp;+1-904-767-5232</div>
-        <div class="line">MOBILE &nbsp;+1-904-729-1051</div>
-        <div class="line">EMAIL &nbsp;sales@bigassmotors.com</div>
-        <div class="line">WEB &nbsp;www.bigassmotors.com</div>
-        <div class="line">BUY &nbsp;•&nbsp; SELL &nbsp;•&nbsp; SOURCE &nbsp;•&nbsp; SHIP &nbsp;—&nbsp; US &amp; MX</div>
+<div class="split">
+  <aside class="list" id="listPane">
+    <div class="filters">
+      <button type="button" data-filter="all" class="on">All</button>
+      <button type="button" data-filter="units">Units</button>
+      <button type="button" data-filter="buyers">Buyers</button>
+    </div>
+    <div id="rows"></div>
+    <button type="button" id="newBuyer" class="ghost" style="width:calc(100% - 20px);margin:10px;">New buyer</button>
+  </aside>
+
+  <main class="detail">
+    <p class="hint" id="fbMsg">Extract a unit or open a buyer. Verify stays off the website until you file the hidden draft.</p>
+    <div class="empty" id="empty">
+      No row selected. Extract a Marketplace URL, or add a buyer. Clicking a row opens details here — no extra tabs.
+    </div>
+
+    <section id="unitPane" hidden>
+      <div class="head">
+        <div>
+          <h1 id="unitHeading"></h1>
+          <div class="meta" id="unitMeta"></div>
+        </div>
+        <div class="actions no-print">
+          <button class="ghost" id="fbVerify" type="button" disabled>Verify</button>
+          <button class="export" id="fbPost" type="button" disabled>File hidden draft</button>
+          <button class="ghost" id="pdfBtn" type="button">Save PDF</button>
+          <a class="ghost" id="cardPdf" hidden>Download PDF</a>
+        </div>
       </div>
-      <div class="rule" style="top:147.6pt"></div>
-      <div class="center" id="outTitle" style="top:154pt;font-size:22pt;font-weight:700;"></div>
-      <div class="center" id="outSub" style="top:184pt;font-size:11pt;color:#555;"></div>
-      <div class="status" id="outStatus"></div>
-      <div class="frame" style="left:36pt;top:243.4pt;width:191.7pt;height:255.6pt"><img id="ph-p1a" data-slot="p1a" src="assets/p1-left.jpg" alt="" /></div>
-      <div class="frame" style="left:238.5pt;top:243.4pt;width:337.5pt;height:255.6pt"><img id="ph-p1b" data-slot="p1b" src="assets/p1-right.jpg" alt="" /></div>
-      <div class="h" style="left:36pt;top:512pt">UNIT DESCRIPTION</div>
-      <div class="rule" style="top:526.3pt"></div>
-      <div class="body" id="outDesc" style="left:36pt;top:533pt;width:540pt"></div>
-      <div class="h" style="left:36pt;top:585.5pt">KEY HIGHLIGHTS</div>
-      <div class="h" style="left:316.8pt;top:585.5pt">WHAT'S INCLUDED</div>
-      <div class="rule" style="top:599.8pt;width:259.2pt"></div>
-      <div class="rule" style="left:316.8pt;top:599.8pt;width:259.2pt"></div>
-      <div class="cols">
-        <ul id="outHigh"></ul>
-        <ul id="outInc"></ul>
+      <div id="verifyBanner" class="no-print" hidden></div>
+      <div id="unitMatches" class="match-list no-print"></div>
+      <details class="sheet-edit no-print">
+        <summary>Edit brochure copy</summary>
+        <label>Title</label><input id="inTitle" />
+        <label>Subtitle</label><input id="inSub" />
+        <label>Status bar</label><input id="inStatus" />
+        <label>Unit description</label><textarea id="inDesc" rows="4"></textarea>
+        <div class="grid2">
+          <div><label>Key highlights</label><textarea id="inHigh" rows="6"></textarea></div>
+          <div><label>What's included</label><textarea id="inInc" rows="6"></textarea></div>
+        </div>
+        <label>Price bar <span class="hint" id="priceHint"></span></label>
+        <input id="inPrice" />
+        <label>Spec heading</label><input id="inSpecHead" />
+        <label>Specs — one per line, Label | Value</label>
+        <textarea id="inSpecs" rows="7"></textarea>
+        <label>Condition &amp; service notes</label><textarea id="inCond" rows="3"></textarea>
+      </details>
+      <div class="stack" id="sheet" hidden>
+        <section class="page" id="page1">
+          <img class="logo" src="assets/logo.jpg" alt="Big Ass Motors" />
+          <div class="brand">
+            <div class="name">BIG ASS MOTORS</div>
+            <div class="line">NORTH AMERICA'S HEAVY EQUIPMENT AUTHORITY</div>
+            <div class="line">EST. 2012 &nbsp;•&nbsp; FAMILY OWNED &amp; OPERATED</div>
+            <div class="line">JACKSONVILLE, FL &nbsp;32205</div>
+            <div class="line">PHONE &nbsp;+1-904-767-5232</div>
+            <div class="line">MOBILE &nbsp;+1-904-729-1051</div>
+            <div class="line">EMAIL &nbsp;sales@bigassmotors.com</div>
+            <div class="line">WEB &nbsp;www.bigassmotors.com</div>
+            <div class="line">BUY &nbsp;•&nbsp; SELL &nbsp;•&nbsp; SOURCE &nbsp;•&nbsp; SHIP &nbsp;—&nbsp; US &amp; MX</div>
+          </div>
+          <div class="rule" style="top:147.6pt"></div>
+          <div class="center" id="outTitle" style="top:154pt;font-size:22pt;font-weight:700;"></div>
+          <div class="center" id="outSub" style="top:184pt;font-size:11pt;color:#555;"></div>
+          <div class="status" id="outStatus"></div>
+          <div class="frame" style="left:36pt;top:243.4pt;width:191.7pt;height:255.6pt"><img id="ph-p1a" data-slot="p1a" alt="" /></div>
+          <div class="frame" style="left:238.5pt;top:243.4pt;width:337.5pt;height:255.6pt"><img id="ph-p1b" data-slot="p1b" alt="" /></div>
+          <div class="h" style="left:36pt;top:512pt">UNIT DESCRIPTION</div>
+          <div class="rule" style="top:526.3pt"></div>
+          <div class="body" id="outDesc" style="left:36pt;top:533pt;width:540pt"></div>
+          <div class="h" style="left:36pt;top:585.5pt">KEY HIGHLIGHTS</div>
+          <div class="h" style="left:316.8pt;top:585.5pt">WHAT'S INCLUDED</div>
+          <div class="rule" style="top:599.8pt;width:259.2pt"></div>
+          <div class="rule" style="left:316.8pt;top:599.8pt;width:259.2pt"></div>
+          <div class="cols">
+            <ul id="outHigh"></ul>
+            <ul id="outInc"></ul>
+          </div>
+          <div class="pricebar" id="outPrice"></div>
+          <footer class="footer"><span>Big Ass Motors &nbsp;•&nbsp; Jacksonville, FL &nbsp;•&nbsp; US &amp; MX Coverage</span><span>Page 1</span><span>www.bigassmotors.com &nbsp;•&nbsp; +1-904-767-5232</span></footer>
+        </section>
+        <section class="page" id="page2">
+          <img class="logo" src="assets/logo.jpg" alt="Big Ass Motors" />
+          <div class="brand">
+            <div class="name">BIG ASS MOTORS</div>
+            <div class="line">NORTH AMERICA'S HEAVY EQUIPMENT AUTHORITY</div>
+            <div class="line">EST. 2012 &nbsp;•&nbsp; FAMILY OWNED &amp; OPERATED</div>
+            <div class="line">JACKSONVILLE, FL &nbsp;32205</div>
+            <div class="line">PHONE &nbsp;+1-904-767-5232</div>
+            <div class="line">MOBILE &nbsp;+1-904-729-1051</div>
+            <div class="line">EMAIL &nbsp;sales@bigassmotors.com</div>
+            <div class="line">WEB &nbsp;www.bigassmotors.com</div>
+            <div class="line">BUY &nbsp;•&nbsp; SELL &nbsp;•&nbsp; SOURCE &nbsp;•&nbsp; SHIP &nbsp;—&nbsp; US &amp; MX</div>
+          </div>
+          <div class="rule" style="top:147.6pt"></div>
+          <div class="rule" style="top:158.4pt"></div>
+          <div class="center" id="outP2" style="top:163pt;font-size:13pt;font-weight:700;"></div>
+          <div class="rule" style="top:190.1pt"></div>
+          <div class="frame" style="left:36pt;top:201.6pt;width:174.2pt;height:116.6pt"><img id="ph-p2a" data-slot="p2a" alt="" /></div>
+          <div class="frame" style="left:218.9pt;top:201.6pt;width:174.2pt;height:116.6pt"><img id="ph-p2b" data-slot="p2b" alt="" /></div>
+          <div class="frame" style="left:401.8pt;top:201.6pt;width:174.2pt;height:116.6pt"><img id="ph-p2c" data-slot="p2c" alt="" /></div>
+          <div class="h" id="outSpecHead" style="left:36pt;top:331.3pt"></div>
+          <div class="rule" style="top:345.6pt"></div>
+          <div class="specbox" id="outSpecs"></div>
+          <div class="h" style="left:36pt;top:538.4pt">CONDITION &amp; SERVICE NOTES</div>
+          <div class="rule" style="top:552.7pt"></div>
+          <div class="body" id="outCond" style="left:36pt;top:559.4pt;width:540pt"></div>
+          <div class="cta">
+            <div class="ready" id="outReady"></div>
+            <div class="sub" id="outLock"></div>
+            <div class="phone" id="outPhone"></div>
+            <div class="web" id="outWeb"></div>
+          </div>
+          <div class="fine" style="top:727pt">All equipment sold as-is. Specifications are general OEM published figures and may vary by configuration; unit details are based on owner reports.<br>Buyer is responsible for final inspection. Big Ass Motors facilitates the transaction.</div>
+          <footer class="footer"><span>Big Ass Motors &nbsp;•&nbsp; Jacksonville, FL &nbsp;•&nbsp; US &amp; MX Coverage</span><span>Page 2</span><span>www.bigassmotors.com &nbsp;•&nbsp; +1-904-767-5232</span></footer>
+        </section>
       </div>
-      <div class="pricebar" id="outPrice"></div>
-      <footer class="footer"><span>Big Ass Motors &nbsp;•&nbsp; Jacksonville, FL &nbsp;•&nbsp; US &amp; MX Coverage</span><span>Page 1</span><span>www.bigassmotors.com &nbsp;•&nbsp; +1-904-767-5232</span></footer>
     </section>
 
-    <section class="page" id="page2">
-      <img class="logo" src="assets/logo.jpg" alt="Big Ass Motors" />
-      <div class="brand">
-        <div class="name">BIG ASS MOTORS</div>
-        <div class="line">NORTH AMERICA'S HEAVY EQUIPMENT AUTHORITY</div>
-        <div class="line">EST. 2012 &nbsp;•&nbsp; FAMILY OWNED &amp; OPERATED</div>
-        <div class="line">JACKSONVILLE, FL &nbsp;32205</div>
-        <div class="line">PHONE &nbsp;+1-904-767-5232</div>
-        <div class="line">MOBILE &nbsp;+1-904-729-1051</div>
-        <div class="line">EMAIL &nbsp;sales@bigassmotors.com</div>
-        <div class="line">WEB &nbsp;www.bigassmotors.com</div>
-        <div class="line">BUY &nbsp;•&nbsp; SELL &nbsp;•&nbsp; SOURCE &nbsp;•&nbsp; SHIP &nbsp;—&nbsp; US &amp; MX</div>
+    <section id="leadPane" hidden>
+      <div class="head">
+        <div>
+          <h1 id="leadHeading">Buyer</h1>
+          <div class="meta" id="leadMeta"></div>
+        </div>
+        <div class="actions no-print">
+          <button class="export" id="saveLead" type="button">Save buyer</button>
+        </div>
       </div>
-      <div class="rule" style="top:147.6pt"></div>
-      <div class="rule" style="top:158.4pt"></div>
-      <div class="center" id="outP2" style="top:163pt;font-size:13pt;font-weight:700;"></div>
-      <div class="rule" style="top:190.1pt"></div>
-      <div class="frame" style="left:36pt;top:201.6pt;width:174.2pt;height:116.6pt"><img id="ph-p2a" data-slot="p2a" src="assets/p2-a.jpg" alt="" /></div>
-      <div class="frame" style="left:218.9pt;top:201.6pt;width:174.2pt;height:116.6pt"><img id="ph-p2b" data-slot="p2b" src="assets/p2-b.jpg" alt="" /></div>
-      <div class="frame" style="left:401.8pt;top:201.6pt;width:174.2pt;height:116.6pt"><img id="ph-p2c" data-slot="p2c" src="assets/p2-c.jpg" alt="" /></div>
-      <div class="h" id="outSpecHead" style="left:36pt;top:331.3pt"></div>
-      <div class="rule" style="top:345.6pt"></div>
-      <div class="specbox" id="outSpecs"></div>
-      <div class="h" style="left:36pt;top:538.4pt">CONDITION &amp; SERVICE NOTES</div>
-      <div class="rule" style="top:552.7pt"></div>
-      <div class="body" id="outCond" style="left:36pt;top:559.4pt;width:540pt"></div>
-      <div class="cta">
-        <div class="ready" id="outReady"></div>
-        <div class="sub" id="outLock"></div>
-        <div class="phone" id="outPhone"></div>
-        <div class="web" id="outWeb"></div>
-      </div>
-      <div class="fine" style="top:727pt">All equipment sold as-is. Specifications are general OEM published figures and may vary by configuration; unit details are based on owner reports.<br>Buyer is responsible for final inspection. Big Ass Motors facilitates the transaction.</div>
-      <footer class="footer"><span>Big Ass Motors &nbsp;•&nbsp; Jacksonville, FL &nbsp;•&nbsp; US &amp; MX Coverage</span><span>Page 2</span><span>www.bigassmotors.com &nbsp;•&nbsp; +1-904-767-5232</span></footer>
+      <div id="leadMatches" class="match-list no-print"></div>
+      <form class="lead-form" id="leadForm">
+        <div class="grid2">
+          <div><label>Name</label><input id="leadName" required /></div>
+          <div><label>Company</label><input id="leadCompany" /></div>
+          <div><label>Phone</label><input id="leadPhone" /></div>
+          <div><label>Email</label><input id="leadEmail" /></div>
+          <div><label>Category</label><input id="leadCategory" placeholder="Directional Drills" /></div>
+          <div><label>Make</label><input id="leadMake" placeholder="Ditch Witch" /></div>
+          <div><label>Model</label><input id="leadModel" placeholder="JT20" /></div>
+          <div><label>Budget max</label><input id="leadBudget" placeholder="160000" /></div>
+          <div><label>Year min</label><input id="leadYearMin" /></div>
+          <div><label>Year max</label><input id="leadYearMax" /></div>
+          <div><label>Hours max</label><input id="leadHoursMax" /></div>
+          <div><label>Keywords</label><input id="leadKeywords" placeholder="rods, hdd, fiber" /></div>
+        </div>
+        <label>Notes</label><textarea id="leadNotes" rows="3"></textarea>
+      </form>
     </section>
-  </div>
-</main>
+  </main>
+</div>
 <input type="file" id="photoPick" accept="image/*" hidden />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
-const SPEC_LINES = [
-  "Year / Model | 2022 Ditch Witch JT20",
-  "Pullback force | 20,000 lb (89 kN)",
-  "Thrust force | 17,000 lb (75.6 kN)",
-  "Spindle torque, max | 2,200 ft·lb (2,980 N·m)",
-  "Spindle speed, max | 210 rpm",
-  "Carriage speed | 140 fpm thrust / 140 fpm pullback",
-  "Drive / frame | Rack & pinion; 2-speed gearbox",
-  "Onboard mud pump | 35 gpm @ 1,000 psi max",
-  "Pilot bore diameter | 4 in (102 mm)",
-  "Entry angle | 10–14°",
-  "Ground speed | 3.2 mph forward / reverse",
-  "Tracks | Rubber tracks",
-  "Stake system | 2-post cylinder-assist stakedown",
-  "Hours | 2,225",
-  "Engine | Deutz TD2.9L4 turbo diesel, 4-cyl",
-  "Power | 74 hp (55 kW) gross @ 2,600 rpm",
-  "Displacement / emissions | 2.9 L (177 in³) • EPA Tier 4",
-  "Length / width / height | 207 in / 51.5 in / 90 in",
-  "Weight w/ pipe | 11,890 lb (5,390 kg)",
-  "Fuel / hydraulic tank | 30 gal / 19 gal",
-  "Pipe loader | Hydraulic, automated controller",
-  "Pipe box capacity | 400 ft (1 drill pipe box)",
-  "Drill pipe length | 10 ft (120 in) nominal",
-  "Pipe OD (Power Pipe HD) | 2.06 in body / 2.63 in tool joint",
-  "Min. bend radius | 107 ft (Power Pipe HD)",
-  "Approach / departure | 18° / 18°"
-];
-
-const fields = {
-  inTitle: "2022 Ditch Witch JT20",
-  inSub: "Horizontal Directional Drill  —  Rods Included  •  Fully Maintained & Serviced",
-  inStatus: "USED — GOOD  |  2,225 Hours  |  Maintenance History Available  |  Checked & Ready to Work",
-  inDesc: "2022 Ditch Witch JT20 horizontal directional drill with 2,225 hours. Fully maintained and serviced, with all maintenance done and the service history available for review. Rods included. The machine has been checked and is ready to operate next day. 20,000 lb class rack-and-pinion drill with automatic pipe loader and rubber tracks, built for fiber, water, gas, and underground utility installation.",
-  inHigh: "2022 JT20 with 2,225 hours.\nFully maintained & serviced; history available.\nRods included.\nChecked and ready to operate next day.\n20,000 lb pullback  •  17,000 lb thrust.\n2,200 ft·lb max spindle torque.\n74 hp Deutz turbo diesel (EPA Tier 4).",
-  inInc: "2022 Ditch Witch JT20 HDD drill\nDrill rods included\nMaintenance / service history available\nOnboard drilling-fluid pump — 35 gpm @ 1,000 psi\nAutomatic pipe loader  •  rubber tracks\nBuilt for fiber, water, gas & utility bores",
-  inPrice: "PRICE: $149,000  •  +1-904-767-5232  •  sales@bigassmotors.com",
-  inP2: "2022 Ditch Witch JT20  •  Horizontal Directional Drill",
-  inSpecHead: "TECHNICAL SPECIFICATIONS — DITCH WITCH JT20",
-  inSpecs: SPEC_LINES.join("\n"),
-  inCond: "Owner reports the drill is fully maintained and serviced with all maintenance done; the maintenance history is available for review. Rods are included. The machine has been checked and is ready to operate next day. Confirm rod count, hour meter, serial, and a full inspection before deposit. Trailer and support equipment shown in photos are not included unless stated. BAM can arrange freight across the US & Mexico.",
-  inReady: "READY TO MOVE  —  $149,000",
-  inLock: "Call or text to lock it down.",
-  inPhone: "+1-904-767-5232",
-  inWeb: "sales@bigassmotors.com  •  www.bigassmotors.com"
-};
-
-function lines(id) {
-  return document.getElementById(id).value.split("\n").map(s => s.trim()).filter(Boolean);
-}
-function bullets(id, target) {
-  target.innerHTML = lines(id).map(t => "<li>" + t.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + "</li>").join("");
-}
-function render() {
-  document.getElementById("outTitle").textContent = document.getElementById("inTitle").value;
-  document.getElementById("outSub").textContent = document.getElementById("inSub").value;
-  document.getElementById("outStatus").textContent = document.getElementById("inStatus").value;
-  document.getElementById("outDesc").textContent = document.getElementById("inDesc").value;
-  document.getElementById("outPrice").textContent = document.getElementById("inPrice").value;
-  document.getElementById("outP2").textContent = document.getElementById("inP2").value;
-  document.getElementById("outSpecHead").textContent = document.getElementById("inSpecHead").value;
-  document.getElementById("outCond").textContent = document.getElementById("inCond").value;
-  document.getElementById("outReady").textContent = document.getElementById("inReady").value;
-  document.getElementById("outLock").textContent = document.getElementById("inLock").value;
-  document.getElementById("outPhone").textContent = document.getElementById("inPhone").value;
-  document.getElementById("outWeb").textContent = document.getElementById("inWeb").value;
-  bullets("inHigh", document.getElementById("outHigh"));
-  bullets("inInc", document.getElementById("outInc"));
-  const editedPrice = (document.getElementById("inPrice").value.match(/\$[\d,]+/) || [""])[0];
-  const specs = lines("inSpecs").map(row => {
-    const i = row.indexOf("|");
-    const pair = i < 0 ? [row, ""] : [row.slice(0, i).trim(), row.slice(i + 1).trim()];
-    if (pair[0].toLowerCase() === "price" && editedPrice) pair[1] = editedPrice;
-    return pair;
-  });
-  document.getElementById("outSpecs").innerHTML = specs.map(([l, v]) =>
-    `<div class="srow"><b>${l.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</b><span>${v.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</span></div>`
-  ).join("");
-}
-
-Object.keys(fields).forEach(id => {
-  const el = document.getElementById(id);
-  el.value = fields[id];
-  el.addEventListener("input", render);
-});
-render();
-
-let pickTarget = null;
-document.getElementById("photoPick").addEventListener("change", (e) => {
-  const file = e.target.files && e.target.files[0];
-  if (!file || !pickTarget) return;
-  const reader = new FileReader();
-  reader.onload = () => { pickTarget.src = reader.result; };
-  reader.readAsDataURL(file);
-  e.target.value = "";
-});
-document.getElementById("sheet").addEventListener("click", (event) => {
-  const img = event.target.closest(".frame img");
-  if (!img) return;
-  pickTarget = img;
-  document.getElementById("photoPick").click();
-});
-
 const EMPTY_PHOTO = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="100%" height="100%" fill="#eeeeee"/><text x="50%" y="50%" fill="#888" font-family="Arial" font-size="22" text-anchor="middle">No photo</text></svg>');
-let currentDraft = null;
+const LOCK = "Call or text to lock it down.";
+const PHONE = "+1-904-767-5232";
+const WEB = "sales@bigassmotors.com  •  www.bigassmotors.com";
 
+let desk = { drafts: [], leads: [], matches: [], counts: {} };
+let currentDraft = null;
+let currentLead = null;
+let listFilter = "all";
+let pickTarget = null;
+
+function $(id) { return document.getElementById(id); }
 function esc(value) {
   return String(value ?? "").replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 }
-
-function setField(id, value) {
-  document.getElementById(id).value = value ?? "";
+function setField(id, value) { $(id).value = value ?? ""; }
+function lines(id) {
+  return $(id).value.split("\n").map(s => s.trim()).filter(Boolean);
 }
+function bullets(id, target) {
+  target.innerHTML = lines(id).map(t => "<li>" + esc(t) + "</li>").join("");
+}
+function moneyOf(text) {
+  const match = String(text || "").match(/\$[\d,]+/);
+  return match ? match[0] : "";
+}
+
+function render() {
+  $("outTitle").textContent = $("inTitle").value;
+  $("outSub").textContent = $("inSub").value;
+  $("outStatus").textContent = $("inStatus").value;
+  $("outDesc").textContent = $("inDesc").value;
+  $("outPrice").textContent = $("inPrice").value;
+  $("outP2").textContent = $("inTitle").value;
+  $("outSpecHead").textContent = $("inSpecHead").value;
+  $("outCond").textContent = $("inCond").value;
+  const price = moneyOf($("inPrice").value);
+  $("outReady").textContent = price ? "READY TO MOVE  —  " + price : "READY TO MOVE";
+  $("outLock").textContent = LOCK;
+  $("outPhone").textContent = PHONE;
+  $("outWeb").textContent = WEB;
+  bullets("inHigh", $("outHigh"));
+  bullets("inInc", $("outInc"));
+  const specs = lines("inSpecs").map(row => {
+    const i = row.indexOf("|");
+    const pair = i < 0 ? [row, ""] : [row.slice(0, i).trim(), row.slice(i + 1).trim()];
+    if (pair[0].toLowerCase() === "price" && price) pair[1] = price;
+    return pair;
+  });
+  $("outSpecs").innerHTML = specs.map(([l, v]) =>
+    `<div class="srow"><b>${esc(l)}</b><span>${esc(v)}</span></div>`
+  ).join("");
+}
+
+["inTitle","inSub","inStatus","inDesc","inHigh","inInc","inPrice","inSpecHead","inSpecs","inCond"].forEach(id => {
+  $(id).addEventListener("input", render);
+});
 
 function collectPhotos() {
   return [...document.querySelectorAll("#sheet .frame img")]
@@ -380,24 +400,32 @@ function collectPhotos() {
 }
 
 function currentBrochure() {
+  const title = $("inTitle").value;
+  const priceLine = $("inPrice").value;
+  const price = moneyOf(priceLine);
   return {
-    title: document.getElementById("inTitle").value,
-    subtitle: document.getElementById("inSub").value,
-    status: document.getElementById("inStatus").value,
-    description: document.getElementById("inDesc").value,
-    highlights: document.getElementById("inHigh").value.split("\n").map(s => s.trim()).filter(Boolean),
-    included: document.getElementById("inInc").value.split("\n").map(s => s.trim()).filter(Boolean),
-    priceLine: document.getElementById("inPrice").value,
-    page2Title: document.getElementById("inP2").value,
-    specHead: document.getElementById("inSpecHead").value,
-    specs: document.getElementById("inSpecs").value.split("\n").map(s => s.trim()).filter(Boolean),
-    condition: document.getElementById("inCond").value,
-    ready: document.getElementById("inReady").value,
-    lock: document.getElementById("inLock").value,
-    phone: document.getElementById("inPhone").value,
-    web: document.getElementById("inWeb").value,
+    title,
+    subtitle: $("inSub").value,
+    status: $("inStatus").value,
+    description: $("inDesc").value,
+    highlights: $("inHigh").value.split("\n").map(s => s.trim()).filter(Boolean),
+    included: $("inInc").value.split("\n").map(s => s.trim()).filter(Boolean),
+    priceLine,
+    page2Title: title,
+    specHead: $("inSpecHead").value,
+    specs: $("inSpecs").value.split("\n").map(s => s.trim()).filter(Boolean),
+    condition: $("inCond").value,
+    ready: price ? "READY TO MOVE  —  " + price : "READY TO MOVE",
+    lock: LOCK,
+    phone: PHONE,
+    web: WEB,
     photos: collectPhotos()
   };
+}
+
+function placePhoto(img, src) {
+  img.onerror = () => { img.onerror = null; img.src = EMPTY_PHOTO; };
+  img.src = src || EMPTY_PHOTO;
 }
 
 function applyBrochure(brochure) {
@@ -408,19 +436,14 @@ function applyBrochure(brochure) {
   setField("inHigh", (brochure.highlights || []).join("\n"));
   setField("inInc", (brochure.included || []).join("\n"));
   setField("inPrice", brochure.priceLine);
-  setField("inP2", brochure.page2Title);
   setField("inSpecHead", brochure.specHead);
   setField("inSpecs", (brochure.specs || []).join("\n"));
   setField("inCond", brochure.condition);
-  setField("inReady", brochure.ready);
-  setField("inLock", brochure.lock);
-  setField("inPhone", brochure.phone);
-  setField("inWeb", brochure.web);
   render();
   const photos = (brochure.photos || []).slice(0, 10);
   document.querySelectorAll(".extra-page").forEach(node => node.remove());
   ["ph-p1a", "ph-p1b", "ph-p2a", "ph-p2b", "ph-p2c"].forEach((id, index) => {
-    placePhoto(document.getElementById(id), photos[index]);
+    placePhoto($(id), photos[index]);
   });
   const rest = photos.slice(5);
   for (let start = 0; start < rest.length; start += 6) {
@@ -428,9 +451,7 @@ function applyBrochure(brochure) {
     const page = document.createElement("section");
     page.className = "page extra-page";
     const pageNo = 3 + Math.floor(start / 6);
-    const header = document.getElementById("page1").querySelector(".brand").parentElement
-      ? document.getElementById("page1").innerHTML.match(/[\s\S]*?<div class="rule" style="top:147.6pt"><\/div>/)[0]
-      : "";
+    const header = $("page1").innerHTML.match(/[\s\S]*?<div class="rule" style="top:147.6pt"><\/div>/)[0] || "";
     page.innerHTML = header + `<div class="center" style="top:163pt;font-size:13pt;font-weight:700;">Brochure photos</div><div class="rule" style="top:190.1pt"></div>`;
     const grid = document.createElement("div");
     grid.className = "photo-grid";
@@ -448,30 +469,164 @@ function applyBrochure(brochure) {
     footer.className = "footer";
     footer.innerHTML = `<span>Big Ass Motors &nbsp;•&nbsp; Jacksonville, FL &nbsp;•&nbsp; US &amp; MX Coverage</span><span>Page ${pageNo}</span><span>www.bigassmotors.com &nbsp;•&nbsp; +1-904-767-5232</span>`;
     page.appendChild(footer);
-    document.getElementById("sheet").appendChild(page);
+    $("sheet").appendChild(page);
   }
+}
+
+async function api(path, payload, method) {
+  const response = await fetch(path, {
+    method: method || (payload ? "POST" : "GET"),
+    headers: payload ? { "Content-Type": "application/json" } : undefined,
+    body: payload ? JSON.stringify(payload) : undefined
+  });
+  const data = await response.json().catch(() => ({ ok: false, error: "Bad response" }));
+  if (!response.ok || data.ok === false) throw new Error(data.error || "Request failed");
+  return data;
+}
+
+function applyDesk(data) {
+  desk.drafts = data.drafts || desk.drafts;
+  desk.leads = data.leads || desk.leads;
+  desk.matches = data.matches || desk.matches;
+  desk.counts = data.counts || desk.counts;
+  const c = desk.counts || {};
+  $("counts").textContent = (c.units || 0) + " units · " + (c.buyers || 0) + " buyers · " + (c.hot || 0) + " hot";
+  paintList();
+}
+
+async function refreshDesk() {
+  applyDesk(await api("/api/desk"));
+}
+
+function hay(row) {
+  return [row.title, row.name, row.company, row.phone, row.email, row.make, row.model, row.category, row.unitTitle, row.leadName, row.displayPrice, row.price]
+    .map(v => String(v || "").toLowerCase()).join(" ");
+}
+
+function paintList() {
+  const q = $("q").value.trim().toLowerCase();
+  const hit = row => !q || hay(row).includes(q);
+  const parts = [];
+  if (listFilter !== "buyers") {
+    const matches = (desk.matches || []).filter(hit);
+    if (listFilter === "all" && matches.length) {
+      parts.push("<div class='filters' style='position:static'><em class='hint'>Ranked matches</em></div>");
+      matches.slice(0, 12).forEach(row => {
+        parts.push(`<button type="button" class="row" data-kind="match" data-listing="${esc(row.listingId)}" data-lead="${esc(row.leadId)}"><span class="score">${esc(row.score)}</span><span><b>${esc(row.unitTitle)}</b><em>${esc(row.leadName)} · ${esc((row.reasons || []).join(", "))}</em></span><span class="pill ${esc(row.tier)}">${esc(row.tier)}</span></button>`);
+      });
+    }
+    const drafts = (desk.drafts || []).filter(hit);
+    if (drafts.length) {
+      if (listFilter === "all") parts.push("<div class='filters' style='position:static'><em class='hint'>Units</em></div>");
+      drafts.forEach(row => {
+        const on = currentDraft && currentDraft.id === row.id ? " on" : "";
+        parts.push(`<button type="button" class="row${on}" data-kind="unit" data-id="${esc(row.id)}"><span class="pill ${esc(row.status)}">${esc(row.status.replace("_", " "))}</span><span><b>${esc(row.title || "Untitled")}</b><em>${esc(row.displayPrice || row.ask || "No price")} · ${row.photos || 0} photos</em></span><span>${esc(row.make || "")}</span></button>`);
+      });
+    }
+  }
+  if (listFilter !== "units") {
+    const leads = (desk.leads || []).filter(hit);
+    if (leads.length) {
+      if (listFilter === "all") parts.push("<div class='filters' style='position:static'><em class='hint'>Buyers</em></div>");
+      leads.forEach(row => {
+        const on = currentLead && currentLead.id === row.id ? " on" : "";
+        const want = [row.make, row.model, row.category].filter(Boolean).join(" ");
+        parts.push(`<button type="button" class="row${on}" data-kind="lead" data-id="${esc(row.id)}"><span class="pill verified">buyer</span><span><b>${esc(row.name)}</b><em>${esc(row.phone || row.email)} · ${esc(want)}</em></span><span>${row.budgetMax ? "$" + Number(row.budgetMax).toLocaleString() : ""}</span></button>`);
+      });
+    }
+  }
+  $("rows").innerHTML = parts.join("") || "<p class='hint' style='padding:12px'>Nothing in this filter.</p>";
+}
+
+function go(hash) {
+  if (location.hash === hash) route();
+  else location.hash = hash;
+}
+
+function route() {
+  const hash = location.hash.replace(/^#/, "") || "/";
+  const unit = hash.match(/^\/unit\/([a-f0-9]{12})$/);
+  const lead = hash.match(/^\/lead\/([a-f0-9]{12})$/);
+  const dead = hash.match(/^\/(inventory|leads|brochure|theme|v0[123]|Code)(\/|$)/);
+  if (dead) {
+    $("fbMsg").textContent = "That route was removed. The desk is this screen.";
+    location.hash = "#/";
+    return;
+  }
+  if (unit) return loadUnit(unit[1]);
+  if (lead) return loadLead(lead[1]);
+  if (hash === "/" || hash === "") {
+    currentDraft = null;
+    currentLead = null;
+    $("unitPane").hidden = true;
+    $("leadPane").hidden = true;
+    $("empty").hidden = false;
+    paintList();
+  }
+}
+
+async function loadUnit(id) {
+  try {
+    const data = await api("/api/marketplace/draft/" + id);
+    showDraft(data.draft);
+    const matches = await api("/api/matches?listing=" + encodeURIComponent(id));
+    paintMatches($("unitMatches"), matches.matches || [], "lead");
+  } catch (err) {
+    $("fbMsg").textContent = err.message;
+    location.hash = "#/";
+  }
+}
+
+async function loadLead(id) {
+  try {
+    const data = await api("/api/leads/" + id);
+    showLead(data.lead);
+    const matches = await api("/api/matches?lead=" + encodeURIComponent(id));
+    paintMatches($("leadMatches"), matches.matches || [], "unit");
+  } catch (err) {
+    $("fbMsg").textContent = err.message;
+    location.hash = "#/";
+  }
+}
+
+function paintMatches(box, rows, openKind) {
+  if (!rows.length) {
+    box.innerHTML = "<p class='hint'>No ranked matches yet.</p>";
+    return;
+  }
+  box.innerHTML = rows.map(row => {
+    const label = openKind === "lead" ? row.leadName : row.unitTitle;
+    const extra = openKind === "lead" ? (row.phone || row.email) : (row.price || "");
+    const target = openKind === "lead" ? "#/lead/" + row.leadId : "#/unit/" + row.listingId;
+    return `<button type="button" class="match" data-hash="${esc(target)}" data-listing="${esc(row.listingId)}" data-lead="${esc(row.leadId)}"><span><b>${esc(row.score)} · ${esc(label)}</b><em style="display:block;color:#6f7180">${esc(extra)} · ${esc((row.reasons || []).join(", "))}</em></span><span class="pill ${esc(row.tier)}">${row.brochurePdf ? "PDF" : esc(row.tier)}</span></button>`;
+  }).join("");
 }
 
 function showDraft(draft) {
   currentDraft = draft;
+  currentLead = null;
+  $("empty").hidden = true;
+  $("leadPane").hidden = true;
+  $("unitPane").hidden = false;
+  $("sheet").hidden = false;
   applyBrochure(draft.brochure || {});
-  const banner = document.getElementById("verifyBanner");
+  $("unitHeading").textContent = (draft.listing && draft.listing.title) || draft.brochure.title || "Unit";
+  const listing = draft.listing || {};
+  $("unitMeta").innerHTML = `<span class="pill ${esc(draft.status)}">${esc(draft.status.replaceAll("_", " "))}</span> · ${esc(listing.price || listing.askingPrice || "")} · ${(listing.photos || []).length} listing photos`;
+  const banner = $("verifyBanner");
   banner.hidden = false;
-  const status = draft.status;
-  document.getElementById("fbVerify").disabled = status !== "pending_verification";
-  document.getElementById("fbPost").disabled = status !== "verified";
-  const price = document.getElementById("inPrice");
-  const priceHint = document.getElementById("priceHint");
-  price.readOnly = status === "pending_verification";
-  if (status === "pending_verification") {
+  $("fbVerify").disabled = draft.status !== "pending_verification";
+  $("fbPost").disabled = draft.status !== "verified";
+  const price = $("inPrice");
+  price.readOnly = draft.status === "pending_verification";
+  if (draft.status === "pending_verification") {
     banner.className = "no-print";
     banner.textContent = "Pending verification. Location, the listing URL, and the source are off this draft. Edit the price after you verify.";
-    priceHint.textContent = "Locked until verification.";
-  } else if (status === "verified") {
+    $("priceHint").textContent = "Locked until verification.";
+  } else if (draft.status === "verified") {
     banner.className = "no-print ok";
     banner.textContent = "Verified. Edit the price, then file the hidden draft. It stays off the website until you List Now.";
-    priceHint.textContent = "Edit the selling price before filing.";
-    price.focus();
+    $("priceHint").textContent = "Edit the selling price before filing.";
   } else {
     banner.className = "no-print ok";
     const crm = draft.website && draft.website.crm;
@@ -479,130 +634,169 @@ function showDraft(draft) {
       ? "Hidden Draft " + (crm.stock || "") + " on the CRM. It is not on the website."
       : "Posted to the website queue. " + ((draft.website && draft.website.note) || "");
   }
-  const card = document.getElementById("machineCard");
   const savedCard = draft.machineCard;
+  const link = $("cardPdf");
   if (savedCard && savedCard.brochureSaved && savedCard.pdf) {
-    card.hidden = false;
-    document.getElementById("cardNote").textContent = "BAM brochure saved on this machine card.";
-    const link = document.getElementById("cardPdf");
+    link.hidden = false;
     link.href = savedCard.pdf;
     link.textContent = "Download " + (savedCard.name || "BAM brochure PDF");
   } else {
-    card.hidden = true;
+    link.hidden = true;
+    link.removeAttribute("href");
   }
+  paintList();
 }
 
-async function api(path, payload) {
-  const response = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-  const data = await response.json().catch(() => ({ ok: false, error: "Bad response" }));
-  if (!response.ok || !data.ok) throw new Error(data.error || "Request failed");
-  return data;
+function showLead(lead) {
+  currentLead = lead;
+  currentDraft = null;
+  $("empty").hidden = true;
+  $("unitPane").hidden = true;
+  $("leadPane").hidden = false;
+  $("leadHeading").textContent = lead.name || "Buyer";
+  $("leadMeta").textContent = [lead.source, lead.phone, lead.email].filter(Boolean).join(" · ");
+  const want = lead.want || {};
+  setField("leadName", lead.name);
+  setField("leadCompany", lead.company);
+  setField("leadPhone", lead.phone);
+  setField("leadEmail", lead.email);
+  setField("leadCategory", want.category);
+  setField("leadMake", want.make);
+  setField("leadModel", want.model);
+  setField("leadBudget", want.budgetMax || "");
+  setField("leadYearMin", want.yearMin || "");
+  setField("leadYearMax", want.yearMax || "");
+  setField("leadHoursMax", want.hoursMax || "");
+  setField("leadKeywords", (want.keywords || []).join(", "));
+  setField("leadNotes", lead.notes);
+  paintList();
 }
 
-async function refreshQueue() {
-  const box = document.getElementById("queue");
-  try {
-    const response = await fetch("/api/marketplace/queue");
-    const data = await response.json();
-    box.innerHTML = (data.drafts || []).map(row =>
-      `<button type="button" class="qitem" data-id="${esc(row.id)}"><b>${esc(row.title || "Untitled")}</b><em>${esc(row.status)} · ${row.photos || 0} photos · ${esc(row.price || "")}</em></button>`
-    ).join("");
-    box.querySelectorAll(".qitem").forEach(button => {
-      button.addEventListener("click", async () => {
-        const response = await fetch("/api/marketplace/draft/" + button.dataset.id);
-        const data = await response.json();
-        if (data.ok) showDraft(data.draft);
-      });
-    });
-  } catch (err) {
-    box.innerHTML = "";
-  }
-}
-
-function placePhoto(img, src) {
-  img.onerror = () => {
-    img.onerror = null;
-    img.src = EMPTY_PHOTO;
+function leadPayload() {
+  return {
+    id: currentLead && currentLead.id,
+    name: $("leadName").value,
+    company: $("leadCompany").value,
+    phone: $("leadPhone").value,
+    email: $("leadEmail").value,
+    source: (currentLead && currentLead.source) || "manual",
+    status: (currentLead && currentLead.status) || "active",
+    notes: $("leadNotes").value,
+    externalId: (currentLead && currentLead.externalId) || "",
+    want: {
+      category: $("leadCategory").value,
+      make: $("leadMake").value,
+      model: $("leadModel").value,
+      budgetMax: $("leadBudget").value,
+      yearMin: $("leadYearMin").value,
+      yearMax: $("leadYearMax").value,
+      hoursMax: $("leadHoursMax").value,
+      keywords: $("leadKeywords").value
+    }
   };
-  img.src = src || EMPTY_PHOTO;
 }
 
-function intakeNote(draft) {
-  const photos = (draft.listing && draft.listing.photos || []).length;
-  const saved = ((draft.brochure && draft.brochure.photos) || []).filter(src => String(src).indexOf("/api/marketplace/photo/") === 0).length;
-  const specs = (draft.listing && draft.listing.oemSpecs || []).length;
-  const specNote = specs
-    ? `${specs} specs filled from a spec search.`
-    : "No published spec sheet was found.";
-  const onSheet = Math.min(saved || photos, 10);
-  if (saved) {
-    return `${photos} photos kept on the machine listing. ${onSheet} of them are on the brochure (10 max): two on page 1, three on page 2, and the rest on the next page. ${specNote}`;
+$("rows").addEventListener("click", event => {
+  const row = event.target.closest("[data-kind]");
+  if (!row) return;
+  if (row.dataset.kind === "unit") go("#/unit/" + row.dataset.id);
+  if (row.dataset.kind === "lead") go("#/lead/" + row.dataset.id);
+  if (row.dataset.kind === "match") go("#/unit/" + row.dataset.listing);
+});
+
+document.querySelector(".detail").addEventListener("click", async event => {
+  const match = event.target.closest(".match");
+  if (!match) return;
+  if (match.dataset.hash && match.dataset.hash.startsWith("#/lead/")) {
+    go(match.dataset.hash);
+    return;
   }
-  return `${photos} photo links kept on the machine listing. The brochure uses the first ${onSheet}. Facebook did not send the image files, so the frames are empty. ${specNote}`;
-}
-
-document.getElementById("fbScrape").addEventListener("click", async () => {
-  const msg = document.getElementById("fbMsg");
-  msg.textContent = "Reading the Marketplace listing…";
-  try {
-    const data = await api("/api/marketplace/scrape", { url: document.getElementById("fbUrl").value });
-    showDraft(data.draft);
-    msg.textContent = intakeNote(data.draft);
-    refreshQueue();
-  } catch (err) {
-    msg.textContent = err.message;
+  if (match.dataset.hash && match.dataset.hash.startsWith("#/unit/")) {
+    if (currentLead && match.dataset.listing) {
+      try {
+        const data = await api("/api/matches/brochure", { listingId: match.dataset.listing, leadId: currentLead.id });
+        $("fbMsg").textContent = "Brochure packet on " + data.lead.name + " · score " + data.match.score;
+        applyDesk(data);
+        go("#/unit/" + match.dataset.listing);
+      } catch (err) {
+        $("fbMsg").textContent = err.message;
+      }
+      return;
+    }
+    go(match.dataset.hash);
   }
 });
 
-document.getElementById("fbParse").addEventListener("click", async () => {
-  const msg = document.getElementById("fbMsg");
-  msg.textContent = "Reading the pasted listing…";
+document.querySelectorAll(".filters [data-filter]").forEach(button => {
+  button.addEventListener("click", () => {
+    listFilter = button.getAttribute("data-filter");
+    document.querySelectorAll(".filters [data-filter]").forEach(item => item.classList.toggle("on", item === button));
+    paintList();
+  });
+});
+
+$("q").addEventListener("input", paintList);
+$("newBuyer").addEventListener("click", () => {
+  currentLead = { id: "", source: "manual", want: {}, packets: [] };
+  showLead(currentLead);
+  $("leadMatches").innerHTML = "<p class='hint'>Save the buyer to rank machines.</p>";
+  $("leadName").focus();
+});
+
+$("saveLead").addEventListener("click", async () => {
   try {
-    const data = await api("/api/marketplace/parse", {
-      url: document.getElementById("fbUrl").value || "https://www.facebook.com/marketplace/item/0/",
-      html: document.getElementById("fbHtml").value
-    });
-    showDraft(data.draft);
-    msg.textContent = intakeNote(data.draft);
-    refreshQueue();
+    const saved = await api("/api/leads", leadPayload());
+    applyDesk(saved);
+    go("#/lead/" + saved.lead.id);
+    $("fbMsg").textContent = "Buyer saved. Matches are on this pane.";
   } catch (err) {
-    msg.textContent = err.message;
+    $("fbMsg").textContent = err.message;
   }
 });
 
-document.getElementById("fbVerify").addEventListener("click", async () => {
+$("fbExtract").addEventListener("click", async () => {
+  $("fbMsg").textContent = "Reading the listing…";
+  try {
+    const html = $("fbHtml").value.trim();
+    const data = html
+      ? await api("/api/marketplace/parse", { url: $("fbUrl").value || "https://www.facebook.com/marketplace/item/0/", html })
+      : await api("/api/marketplace/scrape", { url: $("fbUrl").value });
+    await refreshDesk();
+    go("#/unit/" + data.draft.id);
+    const photos = (data.draft.listing && data.draft.listing.photos || []).length;
+    $("fbMsg").textContent = photos + " photos on the unit. Verify before it can be filed.";
+  } catch (err) {
+    $("fbMsg").textContent = err.message;
+  }
+});
+
+$("fbVerify").addEventListener("click", async () => {
   if (!currentDraft) return;
   try {
     const data = await api("/api/marketplace/verify", { id: currentDraft.id, brochure: currentBrochure() });
     showDraft(data.draft);
     await saveSheetPdf(data.draft);
-    document.getElementById("fbMsg").textContent = "Verified. The BAM brochure PDF is on the machine card. Edit the price, then file the hidden draft.";
-    refreshQueue();
+    await refreshDesk();
+    $("fbMsg").textContent = "Verified. The BAM brochure PDF is on the machine card. Edit the price, then file the hidden draft.";
   } catch (err) {
-    document.getElementById("fbMsg").textContent = err.message;
+    $("fbMsg").textContent = err.message;
   }
 });
 
-document.getElementById("fbPost").addEventListener("click", async () => {
+$("fbPost").addEventListener("click", async () => {
   if (!currentDraft) return;
   try {
     const data = await api("/api/marketplace/post", { id: currentDraft.id, brochure: currentBrochure() });
     showDraft(data.draft);
+    await refreshDesk();
     const crm = data.draft.website && data.draft.website.crm;
-    document.getElementById("fbMsg").textContent = crm
+    $("fbMsg").textContent = crm
       ? "Filed as a hidden Draft. Not on the website until you List Now on the unit."
       : "Verified locally. Not sent to the website.";
-    refreshQueue();
   } catch (err) {
-    document.getElementById("fbMsg").textContent = err.message;
+    $("fbMsg").textContent = err.message;
   }
 });
-
-refreshQueue();
 
 async function sheetPdfBlob() {
   return html2pdf().set({
@@ -611,7 +805,7 @@ async function sheetPdfBlob() {
     html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0 },
     jsPDF: { unit: "pt", format: "letter", orientation: "portrait" },
     pagebreak: { mode: ["css", "legacy"], after: ".page" }
-  }).from(document.getElementById("sheet")).outputPdf("blob");
+  }).from($("sheet")).outputPdf("blob");
 }
 
 async function saveSheetPdf(draft) {
@@ -624,12 +818,12 @@ async function saveSheetPdf(draft) {
     const saved = await api("/api/marketplace/brochure", { id: draft.id, pdf: btoa(binary) });
     showDraft(saved.draft);
   } catch (err) {
-    document.getElementById("fbMsg").textContent = "Verified. The machine card has the brochure link. The laid-out PDF upload failed: " + err.message;
+    $("fbMsg").textContent = "Verified. The machine card has the brochure link. The laid-out PDF upload failed: " + err.message;
   }
 }
 
-document.getElementById("pdfBtn").addEventListener("click", async () => {
-  const btn = document.getElementById("pdfBtn");
+$("pdfBtn").addEventListener("click", async () => {
+  const btn = $("pdfBtn");
   btn.disabled = true;
   btn.textContent = "Building PDF…";
   const filename = (currentDraft && currentDraft.machineCard && currentDraft.machineCard.name) || "BAM_Brochure.pdf";
@@ -640,12 +834,30 @@ document.getElementById("pdfBtn").addEventListener("click", async () => {
     a.download = filename;
     a.click();
   } catch (err) {
-    alert("PDF export failed. Use Print / Save as PDF instead.");
+    window.print();
   } finally {
     btn.disabled = false;
     btn.textContent = "Save PDF";
   }
 });
+
+$("photoPick").addEventListener("change", (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file || !pickTarget) return;
+  const reader = new FileReader();
+  reader.onload = () => { pickTarget.src = reader.result; };
+  reader.readAsDataURL(file);
+  e.target.value = "";
+});
+$("sheet").addEventListener("click", (event) => {
+  const img = event.target.closest(".frame img");
+  if (!img) return;
+  pickTarget = img;
+  $("photoPick").click();
+});
+
+window.addEventListener("hashchange", route);
+refreshDesk().then(route);
 </script>
 </body>
 </html>

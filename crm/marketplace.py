@@ -159,7 +159,7 @@ def machine_fields(listing: dict) -> dict:
         if any(key in blob for key in keys):
             category = name
             break
-    digits = re.sub(r"[^\d]", "", listing.get("price") or "")
+    digits = re.sub(r"[^\d]", "", listing.get("price") or listing.get("askingPrice") or "")
     return {
         "title": title,
         "year": year,
@@ -171,6 +171,12 @@ def machine_fields(listing: dict) -> dict:
         "location": listing.get("location") or "",
         "description": listing.get("description") or "",
     }
+
+
+def display_price(listing: dict | None) -> str:
+    """Selling price after verification; otherwise the source asking price."""
+    listing = listing or {}
+    return listing.get("price") or listing.get("askingPrice") or ""
 
 
 def edited_price(brochure: dict | None) -> str:
