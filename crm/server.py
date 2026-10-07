@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -13,12 +12,12 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, build_opener
 
 from crm.brochure_file import attach_brochure, pdf_path, save_upload
-from crm.desk import matches_for, snapshot
+from crm.desk import matches_for, packet_hot_matches, snapshot
 from crm.ingest import lead_from_payload
 from crm.leads import attach_packet, get_lead, list_leads, upsert_lead
+from crm.catalog import process_incoming_third_party_listing
 from crm.marketplace import brochure_photos, marketplace_url, parse_listing, to_brochure
-from crm.photos import photo_path, save_listing_photos
-from crm.specs import lookup_specs, specs_missing
+from crm.photos import first_saved_photo, photo_path, save_listing_photos
 from crm.store import (
     create_draft,
     find_by_item_id,
@@ -32,7 +31,6 @@ from crm.store import (
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_HTML = 2_000_000
-SPEC_SECONDS = 12
 
 GET_EXACT = {
     "/api/desk": "desk",
@@ -158,7 +156,8 @@ class Handler(SimpleHTTPRequestHandler):
         if action == "scrape":
             url = marketplace_url(payload.get("url") or "")
             html = FETCHER.fetch(url)
-            return self._json(200, {"ok": True, "draft": _hold(html, url)})
+            draft = _hold(html, url)
+            return self._json(200, {"ok": True, "draft": draft, **snapshot()})
         if action == "parse":
             url = marketplace_url(payload.get("url") or "https://www.facebook.com/marketplace/item/0/")
             html = payload.get("html") or ""
@@ -166,10 +165,12 @@ class Handler(SimpleHTTPRequestHandler):
                 raise ValueError("Paste the listing page HTML.")
             if len(html) > MAX_HTML:
                 raise ValueError("That page is too large to import.")
-            return self._json(200, {"ok": True, "draft": _hold(html, url)})
+            draft = _hold(html, url)
+            return self._json(200, {"ok": True, "draft": draft, **snapshot()})
         if action == "verify":
             draft = verify_draft(payload.get("id") or "", payload.get("brochure"))
-            return self._json(200, {"ok": True, "draft": draft})
+            packets = packet_hot_matches(draft)
+            return self._json(200, {"ok": True, "draft": get_draft(draft["id"]), "packets": packets, **snapshot()})
         if action == "brochure":
             draft_id = payload.get("id") or ""
             held = get_draft(draft_id)
@@ -208,7 +209,10 @@ class Handler(SimpleHTTPRequestHandler):
             save_draft(draft)
             return self._json(200, {"ok": True, "draft": draft})
         if action == "lead_upsert":
-            lead = upsert_lead(payload)
+            body = payload
+            if "field_data" in payload or payload.get("object") == "page" or payload.get("leadgen_id"):
+                body = lead_from_payload(payload)
+            lead = upsert_lead(body)
             return self._json(200, {"ok": True, "lead": lead, **snapshot()})
         if action == "ingest_leads":
             self._require_ingest_token()
@@ -331,15 +335,22 @@ def _file_hidden_draft(draft: dict) -> dict | None:
 
 
 def _fill_oem_specs(listing: dict) -> None:
-    if not specs_missing(listing):
-        listing["specsStatus"] = "ready"
+    process_incoming_third_party_listing(listing)
+
+
+def _vision_refine(draft: dict) -> None:
+    if not (os.environ.get("GEMINI_API_KEY", "").strip() or os.environ.get("GOOGLE_API_KEY", "").strip()):
         return
     try:
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            listing["oemSpecs"] = pool.submit(lookup_specs, listing).result(timeout=SPEC_SECONDS)
-    except (OSError, ValueError, TimeoutError):
-        listing["oemSpecs"] = []
-    listing["specsStatus"] = "ready" if listing.get("oemSpecs") else "none"
+        image = first_saved_photo(draft["id"])
+    except ValueError:
+        return
+    if image is None:
+        return
+    listing = process_incoming_third_party_listing(draft.get("listing") or {}, image_path=str(image))
+    draft["listing"] = listing
+    draft["brochure"] = to_brochure(listing, pending=draft.get("status") == "pending_verification")
+    save_draft(draft)
 
 
 def _hold(html: str, url: str) -> dict:
@@ -362,17 +373,24 @@ def _hold(html: str, url: str) -> dict:
     if urls:
         draft["brochure"]["photos"] = brochure_photos(save_listing_photos(draft["id"], urls))
         save_draft(draft)
+        _vision_refine(draft)
     return draft
 
 
 def _prepare_match_brochure(payload: dict) -> dict:
     draft = get_draft(payload.get("listingId") or payload.get("id") or "")
     lead = get_lead(payload.get("leadId") or "")
-    attach_brochure(draft)
-    save_draft(draft)
     from crm.match import score_pair
 
     row = score_pair(draft, lead)
+    existing = [
+        item for item in (lead.get("packets") or [])
+        if item.get("listingId") == draft["id"]
+    ]
+    if existing:
+        return {"ok": True, "draft": draft, "lead": lead, "match": row, "packet": existing[0], **snapshot()}
+    attach_brochure(draft)
+    save_draft(draft)
     pdf = (draft.get("machineCard") or {}).get("pdf") or ""
     packet = {
         "listingId": draft["id"],
@@ -384,7 +402,7 @@ def _prepare_match_brochure(payload: dict) -> dict:
     }
     saved = attach_packet(lead["id"], packet)
     packet["preparedAt"] = saved.get("updatedAt") or packet["preparedAt"]
-    return {"ok": True, "draft": draft, "lead": saved, "match": row, "packet": packet}
+    return {"ok": True, "draft": draft, "lead": saved, "match": row, "packet": packet, **snapshot()}
 
 
 def main():

@@ -1,0 +1,157 @@
+import json
+import os
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+from urllib.error import URLError
+
+from crm.catalog import process_incoming_third_party_listing
+from crm.enrich import enrich_machine_with_oem_specs
+from crm.vision import detect_machine_from_image
+
+
+class CatalogIngestTests(unittest.TestCase):
+    def setUp(self):
+        os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GOOGLE_API_KEY", None)
+
+    def tearDown(self):
+        os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GOOGLE_API_KEY", None)
+
+    def test_vermeer_d20x22_uses_cache_pullback_not_web(self):
+        item = {
+            "title": "Vermeer D20x22 Directional Drill",
+            "make": "Vermeer",
+            "model": "D20x22",
+            "description": "HDD.",
+        }
+        with patch("crm.enrich.lookup_specs") as lookup:
+            out = process_incoming_third_party_listing(item)
+        lookup.assert_not_called()
+        self.assertEqual(out["pullback_force"], "20,000 lbs")
+        self.assertEqual(out["thrust_force"], "22,000 lbs")
+        self.assertEqual(out["spec_profile"], "hdd")
+        self.assertTrue(out["catalog_hit"])
+        self.assertFalse(out["is_staged"])
+        self.assertEqual(out["source_platform"], "Third-Party Scrape Stream")
+
+    def test_rtx1250_plow_gets_plow_depth_not_pullback(self):
+        item = {
+            "title": "Vermeer RTX1250 with vibratory plow",
+            "year": "2018",
+            "description": "Quad tracks.",
+        }
+        with patch("crm.enrich.lookup_specs") as lookup:
+            out = enrich_machine_with_oem_specs(item)
+        lookup.assert_not_called()
+        self.assertEqual(out["engine_power"], "121 hp")
+        self.assertEqual(out["plow_depth"], "42 in")
+        self.assertIn("plow", out["attachments"])
+        self.assertFalse(out.get("pullback_force"))
+        self.assertEqual(out["spec_profile"], "trencher")
+        names = [row["attachment_name"] for row in out["compiled_attachments"]]
+        self.assertTrue(any("plow" in str(name).lower() or row.get("token") == "plow" for name, row in zip(names, out["compiled_attachments"])))
+
+    def test_cat_420_backhoe_from_cache(self):
+        item = {"title": "CAT 420", "make": "CAT", "model": "420"}
+        with patch("crm.enrich.lookup_specs") as lookup:
+            out = enrich_machine_with_oem_specs(item)
+        lookup.assert_not_called()
+        self.assertEqual(out["engine_power"], "93 hp")
+        self.assertEqual(out["operating_weight"], "17,000 lbs")
+        self.assertEqual(out["spec_profile"], "backhoe")
+
+    def test_deere_310_with_4in1_bucket_capacity(self):
+        item = {
+            "title": "John Deere 310 with 4-in-1 loader bucket",
+            "make": "John Deere",
+            "model": "310",
+        }
+        out = enrich_machine_with_oem_specs(item)
+        self.assertEqual(out["engine_power"], "91 hp")
+        self.assertEqual(out["bucket_capacity"], "1.2 yd³")
+        self.assertIn("bucket", out["attachments"])
+
+    def test_staged_inventory_is_not_cataloged(self):
+        item = {
+            "title": "Vermeer D20x22",
+            "make": "Vermeer",
+            "model": "D20x22",
+            "is_staged": True,
+            "source_type": "staged",
+        }
+        with patch("crm.enrich.lookup_specs") as lookup:
+            out = process_incoming_third_party_listing(item)
+        lookup.assert_not_called()
+        self.assertFalse(out.get("catalog_hit"))
+        self.assertFalse(out.get("pullback_force"))
+
+    def test_vision_attachments_compile_rocksaw_depth(self):
+        item = {
+            "title": "Vermeer RTX1250",
+            "make": "Vermeer",
+            "model": "RTX1250",
+            "description": "Ride-on.",
+        }
+        jpeg = Path(tempfile.gettempdir()) / "bam-vision.jpg"
+        jpeg.write_bytes(b"\xff\xd8\xff\xd9")
+        os.environ["GEMINI_API_KEY"] = "test-key"
+        payload = {
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "text": json.dumps({
+                            "make": "Vermeer",
+                            "model": "RTX1250",
+                            "detected_attachments": ["rocksaw", "vibratory plow"],
+                        })
+                    }]
+                }
+            }]
+        }
+
+        class FakeResp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps(payload).encode()
+
+        with patch("crm.vision.urlopen", return_value=FakeResp()), \
+             patch("crm.enrich.lookup_specs") as lookup:
+            out = process_incoming_third_party_listing(item, image_path=str(jpeg))
+        lookup.assert_not_called()
+        self.assertIn("rocksaw", out["attachments"])
+        self.assertIn("plow", out["attachments"])
+        self.assertEqual(out["saw_depth"], "18-24 in")
+        self.assertEqual(out["plow_depth"], "42 in")
+        jpeg.unlink(missing_ok=True)
+
+    def test_vision_without_key_does_not_call_network(self):
+        jpeg = Path(tempfile.gettempdir()) / "bam-vision2.jpg"
+        jpeg.write_bytes(b"\xff\xd8\xff\xd9")
+        with patch("crm.vision.urlopen") as opener:
+            out = detect_machine_from_image(str(jpeg), {"title": "Vermeer RTX1250"})
+        opener.assert_not_called()
+        self.assertEqual(out, {})
+        jpeg.unlink(missing_ok=True)
+
+    def test_vision_failure_does_not_block(self):
+        jpeg = Path(tempfile.gettempdir()) / "bam-vision3.jpg"
+        jpeg.write_bytes(b"\xff\xd8\xff\xd9")
+        os.environ["GEMINI_API_KEY"] = "test-key"
+        with patch("crm.vision.urlopen", side_effect=URLError("down")):
+            out = process_incoming_third_party_listing({
+                "title": "Vermeer D20x22 HDD",
+                "make": "Vermeer",
+                "model": "D20x22",
+            }, image_path=str(jpeg))
+        self.assertEqual(out["pullback_force"], "20,000 lbs")
+        jpeg.unlink(missing_ok=True)

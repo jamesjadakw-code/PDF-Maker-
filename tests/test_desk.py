@@ -13,7 +13,7 @@ from crm import store
 from crm.ingest import lead_from_payload
 from crm.leads import upsert_lead
 from crm.marketplace import parse_listing, to_brochure
-from crm.match import rank_buyers, rank_machines, score_pair
+from crm.match import process_marketplace_scrape_matches, rank_buyers, rank_machines, score_pair
 from crm.server import Handler
 
 
@@ -81,6 +81,54 @@ class MatchTests(unittest.TestCase):
         self.assertEqual(buyers[0]["leadId"], hdd["id"])
         machines = rank_machines(hdd, [draft])
         self.assertEqual(machines[0]["listingId"], draft["id"])
+        self.assertEqual(draft["listing"]["source_type"], "facebook")
+        self.assertFalse(draft["listing"]["is_staged"])
+
+    def test_scrape_matcher_skips_staged_and_uses_category_map(self):
+        listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
+        scrape = store.create_draft(listing, to_brochure(listing))
+        staged_listing = dict(listing)
+        staged_listing["is_staged"] = True
+        staged_listing["source_type"] = "staged"
+        staged = store.create_draft(staged_listing, to_brochure(staged_listing))
+        hdd = upsert_lead(_buyer())
+        rows = process_marketplace_scrape_matches([scrape, staged], [hdd])
+        ids = {row["listingId"] for row in rows}
+        self.assertIn(scrape["id"], ids)
+        self.assertNotIn(staged["id"], ids)
+        self.assertEqual(rank_buyers(staged, [hdd]), [])
+        hits = process_marketplace_scrape_matches(
+            [
+                {
+                    "id": "fb1",
+                    "source_type": "facebook",
+                    "model_category": "Directional Drills",
+                    "make": "Ditch Witch",
+                    "model": "JT20",
+                    "price": "$128,500",
+                    "source_platform": "Facebook Marketplace",
+                },
+                {
+                    "id": "st1",
+                    "source_type": "staged",
+                    "is_staged": True,
+                    "model_category": "Directional Drills",
+                    "make": "Ditch Witch",
+                    "model": "JT20",
+                    "price": "$1",
+                },
+            ],
+            [{
+                "id": "lead1",
+                "name": "Ana Ruiz",
+                "phone": "9045550111",
+                "target_machinery_category": "Directional Drills",
+            }],
+        )
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["listingId"], "fb1")
+        self.assertEqual(hits[0]["buyerName"], "Ana Ruiz")
+        self.assertEqual(hits[0]["source"], "Facebook Marketplace")
 
 
 class IngestTests(unittest.TestCase):
@@ -120,7 +168,10 @@ class DeskServerTests(unittest.TestCase):
         os.environ.pop("BAM_CRM_EMAIL", None)
         os.environ.pop("BAM_CRM_PASSWORD", None)
         store.ROOT = Path(self.tmp.name)
-        self.specs_patch = patch("crm.server.lookup_specs", return_value=[])
+        os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GOOGLE_API_KEY", None)
+        self.specs_patch = patch("crm.enrich.lookup_specs", return_value=[])
         self.specs_patch.start()
         self.photo_patch = patch("crm.photos.fetch_image", side_effect=OSError("blocked"))
         self.photo_patch.start()
@@ -173,8 +224,37 @@ class DeskServerTests(unittest.TestCase):
         self.assertIn("BAM Desk", html)
         self.assertIn("#/unit/", html)
         self.assertIn("#/lead/", html)
+        self.assertIn("/for/", html)
+        self.assertIn("Prepare PDF", html)
+        self.assertIn("Ingest buyer", html)
         self.assertNotIn("Theme</span>", html)
         self.assertNotIn("Post to website", html)
+
+    def test_verify_packs_hot_buyers_and_desk_accepts_facebook_json(self):
+        created = self._post("/api/marketplace/parse", {
+            "url": ITEM_URL,
+            "html": FIXTURE.read_text(encoding="utf-8"),
+        })
+        ingested = self._post("/api/leads", {
+            "leadgen_id": "fb-desk",
+            "field_data": [
+                {"name": "full_name", "values": ["Jose Martinez"]},
+                {"name": "phone_number", "values": ["9045550100"]},
+                {"name": "email", "values": ["jose@fiber.example"]},
+                {"name": "make", "values": ["Ditch Witch"]},
+                {"name": "machine", "values": ["JT20"]},
+                {"name": "category", "values": ["Directional Drills"]},
+                {"name": "budget", "values": ["160000"]},
+            ],
+        })
+        self.assertEqual(ingested["lead"]["externalId"], "fb-desk")
+        self.assertGreaterEqual(ingested["counts"]["hot"], 1)
+        verified = self._post("/api/marketplace/verify", {"id": created["draft"]["id"]})
+        self.assertEqual(len(verified["packets"]), 1)
+        self.assertEqual(verified["packets"][0]["leadId"], ingested["lead"]["id"])
+        self.assertTrue(verified["packets"][0]["pdf"].endswith(".pdf"))
+        again = self._post("/api/marketplace/verify", {"id": created["draft"]["id"]})
+        self.assertTrue(again["packets"][0]["already"])
 
     def test_dead_paths_are_rewritten_or_json_404(self):
         with urllib.request.urlopen(self._url("/desk")) as response:

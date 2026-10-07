@@ -92,6 +92,27 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(fields["hours"], "1840")
         self.assertEqual(fields["price"], "128500")
         self.assertEqual(fields["location"], "Jacksonville, FL")
+        self.assertEqual(fields["family"], "hdd")
+        self.assertEqual(fields["attachments"], ["pipe_loader"])
+
+    def test_rt115_title_is_a_trencher_by_model_and_year(self):
+        fields = machine_fields({"title": "2012 Ditch Witch RT-115", "year": "2012"})
+        self.assertEqual(fields["year"], "2012")
+        self.assertEqual(fields["make"], "Ditch Witch")
+        self.assertEqual(fields["model"], "RT-115")
+        self.assertEqual(fields["category"], "Trenchers & Rock Saws")
+        self.assertEqual(fields["family"], "trencher")
+        self.assertEqual(fields["attachments"], [])
+
+    def test_rt115_with_rocksaw_lists_the_attachment(self):
+        fields = machine_fields({
+            "title": "2012 Ditch Witch RT-115 with rocksaw",
+            "year": "2012",
+            "description": "H512 saw on the rear.",
+        })
+        self.assertEqual(fields["model"], "RT-115")
+        self.assertEqual(fields["category"], "Trenchers & Rock Saws")
+        self.assertIn("rocksaw", fields["attachments"])
 
 
 class QueueTests(unittest.TestCase):
@@ -158,8 +179,11 @@ class ServerTests(unittest.TestCase):
         os.environ.pop("BAM_CRM_PASSWORD", None)
         os.environ.pop("BAM_CRM_BASE", None)
         store.ROOT = Path(self.tmp.name)
-        self.specs_patch = patch("crm.server.lookup_specs", return_value=[])
-        self.specs_patch.start()
+        os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GOOGLE_API_KEY", None)
+        self.specs_patch = patch("crm.enrich.lookup_specs", return_value=[])
+        self.lookup = self.specs_patch.start()
         self.photo_patch = patch("crm.photos.fetch_image", side_effect=OSError("blocked"))
         self.photo_patch.start()
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -218,6 +242,25 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(len(draft["listing"]["photos"]), 19)
         self.assertEqual(len(draft["brochure"]["photos"]), 10)
 
+    def test_parse_fills_missing_oem_named_fields(self):
+        self.lookup.return_value = [
+            ("Pullback force", "20,000 lb"),
+            ("Thrust force", "17,000 lb"),
+            ("Spindle torque, max", "2,200 ft·lb"),
+            ("Power", "74 hp"),
+        ]
+        created = self._post("/api/marketplace/parse", {
+            "url": ITEM_URL,
+            "html": FIXTURE.read_text(encoding="utf-8"),
+        })
+        listing = created["draft"]["listing"]
+        self.assertEqual(listing["pullback_force"], "20,000 lb")
+        self.assertEqual(listing["thrust_force"], "17,000 lb")
+        self.assertEqual(listing["max_spindle_torque"], "2,200 ft·lb")
+        self.assertEqual(listing["engine_power"], "74 hp")
+        self.assertTrue(listing["is_oem_enriched"])
+        self.assertIn("20,000 lb", " ".join(created["draft"]["brochure"]["specs"]))
+
 
 class SpecSearchTests(unittest.TestCase):
     def test_spec_sheet_text_becomes_rows(self):
@@ -262,6 +305,40 @@ class SpecSearchTests(unittest.TestCase):
         self.assertIn("JT20specs.pdf", fetcher.read_url)
         self.assertEqual(dict(rows)["Thrust force"], "17,000 lb")
         self.assertGreaterEqual(len(rows), 4)
+        self.assertIn("2019", fetcher.query)
+        self.assertIn("directional", fetcher.query.lower())
+
+    def test_rt115_search_uses_year_and_skips_hdd_pullback(self):
+        listing = {
+            "title": "2012 Ditch Witch RT-115",
+            "year": "2012",
+            "description": "Used ride-on trencher.",
+        }
+
+        class FakeFetcher:
+            def get(self, url):
+                self.query = url
+                link = quote("https://example.com/RT115specs.pdf", safe="")
+                return f'<a href="/l/?uddg={link}">spec</a>'.encode()
+
+            def read(self, url):
+                self.read_url = url
+                return (
+                    "Trench depth\n80 in\n2.03 m\n"
+                    "Trench width\n12 in\n"
+                    "Pullback force\n20,000 lb\n"
+                    "Power\n115 hp\n"
+                    "Fuel\nDiesel\n"
+                )
+
+        fetcher = FakeFetcher()
+        rows = lookup_specs(listing, fetcher=fetcher)
+        self.assertIn("2012", fetcher.query)
+        self.assertIn("RT-115", fetcher.query)
+        self.assertIn("trencher", fetcher.query.lower())
+        mapped = dict(rows)
+        self.assertEqual(mapped["Trench depth"], "80 in")
+        self.assertNotIn("Pullback force", mapped)
 
 
 class PhotoFileTests(unittest.TestCase):
@@ -271,7 +348,10 @@ class PhotoFileTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["BAM_DATA_DIR"] = self.tmp.name
         store.ROOT = Path(self.tmp.name)
-        self.specs_patch = patch("crm.server.lookup_specs", return_value=[])
+        os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GOOGLE_API_KEY", None)
+        self.specs_patch = patch("crm.enrich.lookup_specs", return_value=[])
         self.specs_patch.start()
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.port = self.httpd.server_address[1]

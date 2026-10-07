@@ -31,9 +31,33 @@ def _path(draft_id: str) -> Path:
     return queue_dir() / f"{draft_id}.json"
 
 
+def _mark_source(listing: dict) -> dict:
+    """Stamp scrape vs staged. Matching never ranks staged inventory."""
+    fields = machine_fields(listing)
+    listing["model_category"] = listing.get("model_category") or fields.get("category") or ""
+    source = str(listing.get("source_type") or "").strip().lower()
+    if listing.get("is_staged") is True or source in ("staged", "internal", "original", "bam"):
+        listing["is_staged"] = True
+        listing["source_type"] = source or "staged"
+        listing["source_platform"] = listing.get("source_platform") or "Staged"
+        return listing
+    url = str(listing.get("sourceUrl") or "")
+    if "facebook.com" in url.lower() or listing.get("itemId"):
+        listing["source_type"] = source or "facebook"
+        listing["source_platform"] = listing.get("source_platform") or "Facebook Marketplace"
+    elif source:
+        listing["source_type"] = source
+        listing["source_platform"] = listing.get("source_platform") or source
+    else:
+        listing["source_type"] = "scrape"
+        listing["source_platform"] = listing.get("source_platform") or "Third-Party Scrape"
+    listing["is_staged"] = False
+    return listing
+
+
 def create_draft(listing: dict, brochure: dict) -> dict:
     draft_id = uuid.uuid4().hex[:12]
-    stored = dict(listing)
+    stored = _mark_source(dict(listing))
     stored["askingPrice"] = stored.get("price") or ""
     stored["price"] = ""
     draft = {
@@ -87,6 +111,10 @@ def summarize_draft(draft: dict) -> dict:
         "createdAt": draft.get("createdAt"),
         "brochurePdf": card.get("pdf") or "",
         "itemId": listing.get("itemId") or "",
+        "source_type": listing.get("source_type") or "",
+        "is_staged": bool(listing.get("is_staged")),
+        "source_platform": listing.get("source_platform") or "",
+        "model_category": listing.get("model_category") or fields.get("category") or "",
     }
 
 
