@@ -5,6 +5,7 @@ from unittest.mock import patch
 from urllib.error import URLError
 
 from crm.enrich import enrich_machine_with_oem_specs
+from crm.machine import identify_machine, spec_fields_for, spec_query
 
 
 def _unit(**extra):
@@ -121,3 +122,55 @@ class EnrichTests(unittest.TestCase):
             out = enrich_machine_with_oem_specs(_unit())
         self.assertEqual(out["pullback_force"], "19,500 lb")
         self.assertTrue(out["is_oem_enriched"])
+
+    def test_rt115_gets_trench_depth_not_pullback(self):
+        item = {
+            "title": "2012 Ditch Witch RT-115",
+            "year": "2012",
+            "description": "Ride-on trencher.",
+        }
+        ident = identify_machine(item)
+        self.assertEqual(ident["family"], "trencher")
+        self.assertEqual(ident["year"], "2012")
+        self.assertIn("trench_depth", ident["spec_fields"])
+        self.assertNotIn("pullback_force", ident["spec_fields"])
+        self.assertIn("2012", spec_query(ident))
+        self.assertIn("trencher", spec_query(ident))
+        rows = [
+            ("Pullback force", "20,000 lb"),
+            ("Trench depth", "80 in"),
+            ("Trench width", "12 in"),
+            ("Power", "115 hp"),
+            ("Operating weight", "11,150 lb"),
+        ]
+        with patch("crm.enrich.lookup_specs", return_value=rows):
+            out = enrich_machine_with_oem_specs(item)
+        self.assertEqual(out["trench_depth"], "80 in")
+        self.assertEqual(out["trench_width"], "12 in")
+        self.assertEqual(out["engine_power"], "115 hp")
+        self.assertEqual(out["category"], "Trenchers & Rock Saws")
+        self.assertEqual(out["spec_profile"], "trencher")
+        self.assertFalse(out.get("pullback_force"))
+        self.assertNotIn("Pullback force", dict(out["oemSpecs"]))
+
+    def test_rt115_rocksaw_fills_saw_depth(self):
+        item = {
+            "title": "2012 Ditch Witch RT-115 with rocksaw",
+            "year": "2012",
+            "description": "H512 attachment.",
+        }
+        self.assertIn("rocksaw", identify_machine(item)["attachments"])
+        self.assertIn("saw_depth", spec_fields_for("trencher", ["rocksaw"]))
+        rows = [
+            ("Trench depth", "80 in"),
+            ("Saw depth", "30 in"),
+            ("Power", "115 hp"),
+            ("Operating weight", "12,400 lb"),
+        ]
+        with patch("crm.enrich.lookup_specs", return_value=rows):
+            out = enrich_machine_with_oem_specs(item)
+        self.assertEqual(out["trench_depth"], "80 in")
+        self.assertEqual(out["saw_depth"], "30 in")
+        self.assertIn("rocksaw", out["attachments"])
+        self.assertFalse(out.get("pullback_force"))
+        self.assertFalse(out.get("thrust_force"))

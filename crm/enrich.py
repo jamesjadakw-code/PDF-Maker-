@@ -1,4 +1,7 @@
-"""Fill missing OEM baseline specs on a third-party scrape. Never block ingest."""
+"""Fill missing OEM baseline specs for this make, model, year, and attachments.
+
+Never block ingest. Never copy HDD pullback onto a trencher.
+"""
 
 from __future__ import annotations
 
@@ -9,37 +12,21 @@ from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from crm.marketplace import machine_fields
+from crm.machine import (
+    SPEC_FIELDS,
+    field_for_label,
+    identify_machine,
+    keep_spec_row,
+    spec_query,
+    wire_target,
+)
 from crm.specs import lookup_specs, specs_missing
 
 SPEC_SECONDS = 12
 
-_NAMED = (
-    ("pullback_force", ("pullback",)),
-    ("thrust_force", ("thrust",)),
-    ("max_spindle_torque", ("spindle torque", "max torque", "torque")),
-    ("engine_power", ("horsepower", "engine power", "gross power", "rated power", "power")),
-    ("operating_weight", ("operating weight", "weight w", "weight")),
-    ("dimensions", ("length / width / height", "l x w x h", "dimensions")),
-)
-
-_WIRE_KEYS = {
-    "pullback_force": "pullback_force",
-    "pullback": "pullback_force",
-    "thrust_force": "thrust_force",
-    "thrust": "thrust_force",
-    "max_spindle_torque": "max_spindle_torque",
-    "spindle_torque": "max_spindle_torque",
-    "engine_power": "engine_power",
-    "power": "engine_power",
-    "operating_weight": "operating_weight",
-    "weight": "operating_weight",
-    "dimensions": "dimensions",
-}
-
 
 def enrich_machine_with_oem_specs(scraped_item: dict, fetcher=None) -> dict:
-    """Lookup published OEM figures for make/model. Returns the same listing dict."""
+    """Lookup published OEM figures for this unit. Returns the same listing dict."""
     try:
         return _enrich(scraped_item, fetcher)
     except Exception:
@@ -49,29 +36,46 @@ def enrich_machine_with_oem_specs(scraped_item: dict, fetcher=None) -> dict:
 
 
 def _enrich(scraped_item: dict, fetcher=None) -> dict:
-    fields = machine_fields(scraped_item)
-    make = str(scraped_item.get("make") or fields.get("make") or "").strip()
-    model = str(scraped_item.get("model") or fields.get("model") or "").strip()
-    if not make or not model or model == fields.get("title"):
+    ident = identify_machine(scraped_item)
+    make = ident["make"]
+    model = ident["model"]
+    if not make or not model or model == ident["title"]:
         scraped_item["is_oem_enriched"] = False
         return scraped_item
 
+    scraped_item["year"] = ident["year"] or scraped_item.get("year") or ""
+    scraped_item["make"] = make
+    scraped_item["model"] = model
+    scraped_item["category"] = ident["category"]
+    scraped_item["model_category"] = ident["category"]
+    scraped_item["attachments"] = ident["attachments"]
+    scraped_item["spec_profile"] = ident["family"]
+
+    allowed = ident["spec_fields"]
     named = {}
     try:
-        named = _from_wire(make, model, fields.get("category") or scraped_item.get("category") or "")
+        named = _from_wire(ident, allowed)
     except (OSError, ValueError, TimeoutError, HTTPError, URLError, TypeError, json.JSONDecodeError):
         named = {}
-    rows = list(scraped_item.get("oemSpecs") or [])
-    if specs_missing(scraped_item) and not rows:
-        try:
-            with ThreadPoolExecutor(max_workers=1) as pool:
-                rows = list(pool.submit(lookup_specs, scraped_item, fetcher).result(timeout=SPEC_SECONDS))
-        except TimeoutError:
-            rows = []
-    named = _merge_named(scraped_item, named, rows)
+    rows = _filter_rows(list(scraped_item.get("oemSpecs") or []), allowed)
+    if not rows:
+        probe = dict(scraped_item)
+        probe["oemSpecs"] = []
+        if specs_missing(probe):
+            try:
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    rows = _filter_rows(
+                        list(pool.submit(lookup_specs, probe, fetcher).result(timeout=SPEC_SECONDS)),
+                        allowed,
+                    )
+            except TimeoutError:
+                rows = []
+    named = _merge_named(scraped_item, named, rows, allowed)
 
     filled = []
-    for key, _needles in _NAMED:
+    for key, _label, _needles, _wire, _families, _needed in SPEC_FIELDS:
+        if key not in allowed:
+            continue
         value = named.get(key) or scraped_item.get(key) or ""
         if value and str(value).strip().upper() not in {"N/A", "NA", "NONE"}:
             scraped_item[key] = str(value).strip()
@@ -80,7 +84,7 @@ def _enrich(scraped_item: dict, fetcher=None) -> dict:
             scraped_item.setdefault(key, scraped_item.get(key) or "")
 
     if filled and not rows:
-        rows = _rows_from_named(scraped_item)
+        rows = _rows_from_named(scraped_item, allowed)
     if rows:
         scraped_item["oemSpecs"] = rows
     else:
@@ -95,15 +99,17 @@ def _enrich(scraped_item: dict, fetcher=None) -> dict:
     return scraped_item
 
 
-def _from_wire(make: str, model: str, category: str) -> dict:
+def _from_wire(ident: dict, allowed: tuple[str, ...]) -> dict:
     token = os.environ.get("ANAKIN_WIRE_API_KEY", "").strip()
     if not token:
         return {}
     body = json.dumps({
         "action_id": "machinio_specs_lookup_v1",
         "parameters": {
-            "search_query": f"{make} {model} specifications",
-            "category_filter": category or "construction",
+            "search_query": spec_query(ident),
+            "category_filter": ident.get("category") or ident.get("family") or "construction",
+            "year": ident.get("year") or "",
+            "attachments": ident.get("attachments") or [],
         },
     }).encode()
     request = Request(
@@ -126,37 +132,41 @@ def _from_wire(make: str, model: str, category: str) -> dict:
         specs = specs["specs"]
     mapped = {}
     for key, value in specs.items():
-        target = _WIRE_KEYS.get(str(key).strip().lower())
+        target = wire_target(key, allowed)
         text = str(value or "").strip()
         if target and text and text.upper() not in {"N/A", "NA", "NONE"}:
             mapped[target] = text
     return mapped
 
 
-def _merge_named(listing: dict, wired: dict, rows: list[tuple[str, str]]) -> dict:
-    named = dict(wired)
-    for key, _needles in _NAMED:
+def _merge_named(listing: dict, wired: dict, rows: list[tuple[str, str]], allowed: tuple[str, ...]) -> dict:
+    named = {key: value for key, value in wired.items() if key in allowed}
+    for key, _label, _needles, _wire, _families, _needed in SPEC_FIELDS:
+        if key not in allowed:
+            continue
         current = str(listing.get(key) or "").strip()
         if current and current.upper() not in {"N/A", "NA"}:
             named[key] = current
     for label, value in rows:
-        field = _field_for_label(label)
-        if field and not named.get(field) and str(value).strip():
+        field = field_for_label(label, allowed)
+        if field and not named.get(field) and str(value).strip() and str(value).strip().upper() not in {"N/A", "NA", "NONE"}:
             named[field] = str(value).strip()
-    if not named.get("dimensions"):
+    if "dimensions" in allowed and not named.get("dimensions"):
         dims = _combine_dimensions(rows)
         if dims:
             named["dimensions"] = dims
     return named
 
 
-def _field_for_label(label: str) -> str:
-    lowered = str(label or "").lower()
-    for field, needles in _NAMED:
-        for needle in needles:
-            if needle in lowered:
-                return field
-    return ""
+def _filter_rows(rows: list, allowed: tuple[str, ...]) -> list[tuple[str, str]]:
+    kept = []
+    for row in rows:
+        if not isinstance(row, (tuple, list)) or len(row) < 2:
+            continue
+        label, value = str(row[0]).strip(), str(row[1]).strip()
+        if label and value and keep_spec_row(label, allowed):
+            kept.append((label, value))
+    return kept
 
 
 def _combine_dimensions(rows: list[tuple[str, str]]) -> str:
@@ -167,24 +177,17 @@ def _combine_dimensions(rows: list[tuple[str, str]]) -> str:
         if not text:
             continue
         for axis in ("length", "width", "height"):
-            if axis in lowered and "pipe" not in lowered and axis not in found:
+            if axis in lowered and "pipe" not in lowered and "trench" not in lowered and "saw" not in lowered and axis not in found:
                 found[axis] = text
     if len(found) >= 2:
         return " / ".join(found[axis] for axis in ("length", "width", "height") if axis in found)
     return ""
 
 
-def _rows_from_named(listing: dict) -> list[tuple[str, str]]:
-    labels = {
-        "pullback_force": "Pullback force",
-        "thrust_force": "Thrust force",
-        "max_spindle_torque": "Spindle torque, max",
-        "engine_power": "Power",
-        "operating_weight": "Operating weight",
-        "dimensions": "Length / width / height",
-    }
+def _rows_from_named(listing: dict, allowed: tuple[str, ...]) -> list[tuple[str, str]]:
+    labels = {key: label for key, label, _needles, _wire, _families, _needed in SPEC_FIELDS}
     return [
         (labels[key], listing[key])
-        for key in labels
-        if str(listing.get(key) or "").strip()
+        for key in allowed
+        if key in labels and str(listing.get(key) or "").strip()
     ]

@@ -14,7 +14,7 @@ from html import unescape
 from urllib.parse import quote_plus, unquote, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from crm.marketplace import machine_fields
+from crm.machine import field_for_label, identify_machine, keep_spec_row, prefer_labels, spec_query
 
 _MEASURE = re.compile(
     r"\d[\d,]*(?:\.\d+)?\s*(?:lb|ft·lb|ft|in|hp|rpm|gpm|psi|mph|kN|N·m|mm|kg|kW|gal|qt)\b",
@@ -40,22 +40,29 @@ def specs_missing(listing: dict) -> bool:
 
 
 def lookup_specs(listing: dict, fetcher=None) -> list[tuple[str, str]]:
-    """Search for the machine and return label/value rows. Empty if none are found."""
+    """Search for this make/model/year and return label/value rows. Empty if none are found."""
     if not specs_missing(listing):
         return []
-    fields = machine_fields(listing)
-    query = " ".join(part for part in (fields.get("make"), fields.get("model"), "specifications") if part)
+    ident = identify_machine(listing)
+    query = spec_query(ident)
     if not query.strip() or query.strip().lower() == "specifications":
         return []
+    allowed = ident.get("spec_fields") or ()
+    family = ident.get("family") or ""
     fetcher = fetcher or UrlFetcher()
     for link in search_links(query, fetcher)[:3]:
         try:
             text = fetcher.read(link)
         except (OSError, ValueError, ImportError):
             continue
-        rows = parse_spec_text(text)
-        if len(rows) >= 4:
-            return _prefer(rows)[:18]
+        rows = [
+            (label, value)
+            for label, value in parse_spec_text(text)
+            if keep_spec_row(label, allowed)
+        ]
+        ranked = _prefer(rows, family)[:18]
+        if _usable_sheet(ranked, family, allowed):
+            return ranked
     return []
 
 
@@ -198,22 +205,27 @@ def _is_header(line: str) -> bool:
     return bool(letters) and line == line.upper() and not re.search(r"\d", line) and len(line) <= 40
 
 
-_PRIORITY = (
-    "thrust", "pullback", "torque", "spindle", "engine", "power", "horse",
-    "weight", "bore", "fuel", "flow", "pressure", "length", "width", "height",
-)
+def _prefer(rows: list[tuple[str, str]], family: str = "") -> list[tuple[str, str]]:
+    priority = prefer_labels(family)
 
-
-def _prefer(rows: list[tuple[str, str]]) -> list[tuple[str, str]]:
     def score(label: str) -> int:
         lowered = label.lower()
-        for index, word in enumerate(_PRIORITY):
+        for index, word in enumerate(priority):
             if word in lowered:
                 return index
-        return len(_PRIORITY)
+        return len(priority)
 
     ranked = sorted(enumerate(rows), key=lambda item: (score(item[1][0]), item[0]))
     return [row for _, row in ranked]
+
+
+def _usable_sheet(rows: list[tuple[str, str]], family: str, allowed: tuple[str, ...]) -> bool:
+    if family in {"hdd", "trencher"}:
+        keys = {field_for_label(label, allowed) for label, _value in rows}
+        if family == "hdd":
+            return bool(keys & {"pullback_force", "thrust_force", "max_spindle_torque"})
+        return bool(keys & {"trench_depth", "trench_width", "saw_depth", "plow_depth"})
+    return len(rows) >= 4
 
 
 def _skip(line: str) -> bool:

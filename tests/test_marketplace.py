@@ -92,6 +92,27 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(fields["hours"], "1840")
         self.assertEqual(fields["price"], "128500")
         self.assertEqual(fields["location"], "Jacksonville, FL")
+        self.assertEqual(fields["family"], "hdd")
+        self.assertEqual(fields["attachments"], [])
+
+    def test_rt115_title_is_a_trencher_by_model_and_year(self):
+        fields = machine_fields({"title": "2012 Ditch Witch RT-115", "year": "2012"})
+        self.assertEqual(fields["year"], "2012")
+        self.assertEqual(fields["make"], "Ditch Witch")
+        self.assertEqual(fields["model"], "RT-115")
+        self.assertEqual(fields["category"], "Trenchers & Rock Saws")
+        self.assertEqual(fields["family"], "trencher")
+        self.assertEqual(fields["attachments"], [])
+
+    def test_rt115_with_rocksaw_lists_the_attachment(self):
+        fields = machine_fields({
+            "title": "2012 Ditch Witch RT-115 with rocksaw",
+            "year": "2012",
+            "description": "H512 saw on the rear.",
+        })
+        self.assertEqual(fields["model"], "RT-115")
+        self.assertEqual(fields["category"], "Trenchers & Rock Saws")
+        self.assertIn("rocksaw", fields["attachments"])
 
 
 class QueueTests(unittest.TestCase):
@@ -282,6 +303,40 @@ class SpecSearchTests(unittest.TestCase):
         self.assertIn("JT20specs.pdf", fetcher.read_url)
         self.assertEqual(dict(rows)["Thrust force"], "17,000 lb")
         self.assertGreaterEqual(len(rows), 4)
+        self.assertIn("2019", fetcher.query)
+        self.assertIn("directional", fetcher.query.lower())
+
+    def test_rt115_search_uses_year_and_skips_hdd_pullback(self):
+        listing = {
+            "title": "2012 Ditch Witch RT-115",
+            "year": "2012",
+            "description": "Used ride-on trencher.",
+        }
+
+        class FakeFetcher:
+            def get(self, url):
+                self.query = url
+                link = quote("https://example.com/RT115specs.pdf", safe="")
+                return f'<a href="/l/?uddg={link}">spec</a>'.encode()
+
+            def read(self, url):
+                self.read_url = url
+                return (
+                    "Trench depth\n80 in\n2.03 m\n"
+                    "Trench width\n12 in\n"
+                    "Pullback force\n20,000 lb\n"
+                    "Power\n115 hp\n"
+                    "Fuel\nDiesel\n"
+                )
+
+        fetcher = FakeFetcher()
+        rows = lookup_specs(listing, fetcher=fetcher)
+        self.assertIn("2012", fetcher.query)
+        self.assertIn("RT-115", fetcher.query)
+        self.assertIn("trencher", fetcher.query.lower())
+        mapped = dict(rows)
+        self.assertEqual(mapped["Trench depth"], "80 in")
+        self.assertNotIn("Pullback force", mapped)
 
 
 class PhotoFileTests(unittest.TestCase):
