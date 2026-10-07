@@ -9,6 +9,7 @@ from urllib.error import URLError
 from crm.catalog import lookup_catalog, process_incoming_third_party_listing
 from crm.enrich import enrich_machine_with_oem_specs
 from crm.machine import identify_machine, make_from_model
+from crm.marketplace import to_brochure
 from crm.vision import detect_machine_from_image
 
 
@@ -79,20 +80,25 @@ class CatalogIngestTests(unittest.TestCase):
         self.assertEqual(labels["Make"], "Ditch Witch")
         self.assertEqual(labels["Model"], "RT125")
         self.assertEqual(labels["Power"], "121 hp")
-        self.assertEqual(labels["Engine"], "Cummins F3.8 turbocharged, charge-air cooled")
         self.assertEqual(labels["Plow depth"], "42 in")
-        self.assertIn("Quad", labels["Undercarriage"])
-        self.assertEqual(labels["Fuel tank"], "38 gal")
-        self.assertEqual(labels["Ground clearance"], "15.5 in")
-        self.assertEqual(labels["Reel diameter, max"], "96 in max")
-        self.assertEqual(labels["reel capacity"], "3,000 lb")
-        self.assertEqual(labels["plow model"], "VP120Q")
-        self.assertEqual(labels["reel model"], "RC30")
-        self.assertGreaterEqual(len(out["spec_sheet"]), 25)
+        self.assertNotIn("Fuel tank", labels)
+        self.assertNotIn("DEF tank", labels)
+        self.assertNotIn("Engine", labels)
+        self.assertLessEqual(len(out["spec_sheet"]), 12)
         self.assertIn("reel", labels["Attachments"])
+        self.assertIn("VP120Q", labels["Attachments"])
         models = {row.get("token"): row.get("model") for row in out["compiled_attachments"]}
         self.assertEqual(models.get("plow"), "VP120Q")
         self.assertEqual(models.get("reel"), "RC30")
+        brochure = to_brochure(out)
+        self.assertEqual(len(brochure["specs"]), 26)
+        sheet = " ".join(brochure["specs"])
+        self.assertIn("Power | 121 hp", sheet)
+        self.assertIn("Plow depth | 42 in", sheet)
+        self.assertNotIn("DEF tank", sheet)
+        self.assertNotIn("Fuel tank", sheet)
+        filled = [row for row in brochure["specs"] if row.split("|", 1)[0].strip()]
+        self.assertLessEqual(len(filled), 12)
 
     def test_rtx1250_plow_gets_plow_depth_not_pullback(self):
         item = {

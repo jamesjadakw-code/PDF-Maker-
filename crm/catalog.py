@@ -264,7 +264,7 @@ _ATTACH_NAMED = (
 
 
 def spec_sheet(listing: dict) -> list[dict]:
-    """Every identity, OEM, and attachment figure for the desk and brochure."""
+    """Brochure-facing identity and CRM spec fields. Extra catalog keys stay off the sheet."""
     ident = identify_machine(listing)
     rows: list[dict] = []
     seen: set[str] = set()
@@ -284,40 +284,24 @@ def spec_sheet(listing: dict) -> list[dict]:
     add("Model", ident.get("model") or listing.get("model"))
     add("Category", ident.get("category") or listing.get("category"))
     add("Hours", listing.get("hours"))
+    allowed = spec_fields_for(ident.get("family") or "other", ident.get("attachments") or listing.get("attachments") or [])
     for key, label, _needles, _wire, _families, _needed in SPEC_FIELDS:
-        add(label, listing.get(key))
+        if key in allowed:
+            add(label, listing.get(key))
     for label, value in listing.get("oemSpecs") or []:
-        add(str(label), value)
-    attachments = ident.get("attachments") or listing.get("attachments") or []
-    if attachments:
-        add("Attachments", ", ".join(str(item) for item in attachments))
+        from crm.machine import field_for_label
+
+        if field_for_label(str(label), allowed):
+            add(str(label), value)
+    names = []
     for item in listing.get("compiled_attachments") or []:
-        name = str(item.get("attachment_name") or item.get("token") or "Attachment")
-        add(name, item.get("type") or item.get("utility") or item.get("notes") or "mounted")
-        for field, label in (
-            ("model", name + " model"),
-            ("max_depth", "Plow depth"),
-            ("cut_depth", "Saw depth"),
-            ("trench_depth", "Trench depth"),
-            ("trench_width", "Trench width"),
-            ("dig_depth", "Digging depth"),
-            ("reel_diameter", "Reel diameter, max"),
-            ("internal_width", "Reel internal width"),
-            ("capacity", name + " capacity"),
-            ("attachment_weight", name + " weight"),
-            ("reach", "Backhoe reach"),
-            ("notes", name + " notes"),
-        ):
-            add(label, item.get(field))
-        skip = {
-            "token", "attachment_name", "type", "utility", "model", "max_depth",
-            "cut_depth", "trench_depth", "trench_width", "dig_depth", "reel_diameter",
-            "internal_width", "capacity", "attachment_weight", "reach", "notes",
-        }
-        for key, value in item.items():
-            if key in skip:
-                continue
-            add(f"{name} {key.replace('_', ' ')}", value)
+        token = str(item.get("token") or item.get("attachment_name") or "").strip()
+        model = str(item.get("model") or "").strip()
+        names.append(f"{model} {token}".strip() if model else token)
+    if not names:
+        names = [str(item) for item in (ident.get("attachments") or listing.get("attachments") or []) if item]
+    if names:
+        add("Attachments", ", ".join(names))
     return rows
 
 
@@ -393,9 +377,6 @@ def apply_catalog(listing: dict, ident: dict | None = None) -> dict:
             text = str(row.get(src) or "").strip()
             if text:
                 named.setdefault(dest, text)
-    extra = _payload_rows(hit["payload"])
-    if extra:
-        listing["_catalog_rows"] = extra
     return named
 
 
@@ -510,63 +491,6 @@ def _family_from_payload(row: dict) -> tuple[str, str]:
         if needle in blob:
             return family, category
     return "", ""
-
-
-_SKIP_PAYLOAD = {src for src, _dest, _template in _BASE_NAMED}
-
-_PAYLOAD_LABELS = {
-    "engine": "Engine",
-    "cylinders": "Cylinders",
-    "displacement": "Displacement",
-    "rated_speed": "Rated speed",
-    "emissions": "Emissions",
-    "tracks": "Undercarriage",
-    "configuration": "Configuration",
-    "default_app": "Application",
-    "application": "Application",
-    "fuel": "Fuel",
-    "ground_drive": "Ground drive",
-    "attachment_drive": "Attachment drive",
-    "max_tractor_weight": "Allowable tractor weight, max",
-    "hydrawheel_max_weight": "Hydrawheel saws, max weight",
-    "front_counterweight": "Front counterweight",
-    "side_counterweight": "Side counterweight",
-    "wheelbase": "Wheelbase",
-    "tread": "Tread",
-    "ground_clearance": "Ground clearance",
-    "approach_angle": "Approach angle",
-    "forward_speed": "Forward speed, max",
-    "reverse_speed": "Reverse speed, max",
-    "turning_circle_front": "Turning circle, front steer",
-    "turning_circle_4ws": "Turning circle, 4-wheel steer",
-    "fuel_tank": "Fuel tank",
-    "def_tank": "DEF tank",
-    "engine_oil": "Engine oil",
-    "hydraulic_system": "Hydraulic system",
-    "hydraulic_reservoir": "Hydraulic reservoir",
-    "coolant": "Coolant",
-    "ground_drive_flow": "Ground drive pump",
-    "attachment_flow": "Attachment pump",
-    "auxiliary_flow": "Auxiliary pump",
-    "blade_width": "Backfill blade width",
-    "blade_height": "Backfill blade height",
-    "blade_lift": "Blade lift above grade",
-    "blade_drop": "Blade drop below grade",
-    "operator_noise": "Operator noise",
-    "source": "Spec source",
-}
-
-
-def _payload_rows(payload: dict) -> list[tuple[str, str]]:
-    rows = []
-    for key, value in payload.items():
-        if key in _SKIP_PAYLOAD or value is None or value == "" or isinstance(value, (dict, list)):
-            continue
-        label = _PAYLOAD_LABELS.get(key) or key.replace("_", " ").title()
-        text = str(value).strip()
-        if text:
-            rows.append((label, text))
-    return rows
 
 
 def _format_figure(value, template: str) -> str:

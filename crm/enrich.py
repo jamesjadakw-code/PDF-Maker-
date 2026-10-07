@@ -13,6 +13,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from crm.catalog import apply_catalog, catalog_covers, spec_sheet
+from crm.lectura import apply_lectura
 from crm.machine import (
     SPEC_FIELDS,
     field_for_label,
@@ -51,6 +52,8 @@ def _enrich(scraped_item: dict, fetcher=None) -> dict:
 
     catalog_named = apply_catalog(scraped_item, ident)
     ident = identify_machine(scraped_item)
+    lectura_named = apply_lectura(scraped_item, ident)
+    ident = identify_machine(scraped_item)
     make = ident["make"] or make
     model = ident["model"] or model
     scraped_item["year"] = ident["year"] or scraped_item.get("year") or ""
@@ -63,6 +66,9 @@ def _enrich(scraped_item: dict, fetcher=None) -> dict:
 
     allowed = ident["spec_fields"]
     named = {key: value for key, value in catalog_named.items() if key in allowed}
+    for key, value in lectura_named.items():
+        if key in allowed:
+            named.setdefault(key, value)
     cache_hit = catalog_covers(named, ident.get("family") or "")
     if not cache_hit:
         try:
