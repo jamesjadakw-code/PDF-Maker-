@@ -1,0 +1,156 @@
+/* BAM inventory hub — V02. Second theme option, between Command (v01) and Jobsite (v03).
+   Navy / yellow. Barlow Condensed headings, Source Sans 3 body, 8px radius.
+   No hazard stripe, no monospace, no Black Ops.
+   Load after crm.css and url_uploader.css. V02.js paints the picker and does not post to api/theme.php. */
+@font-face{font-family:"Barlow Condensed";font-weight:700;font-display:swap;src:url(/assets/fonts/barlow-condensed-700.woff2) format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-weight:800;font-display:swap;src:url(/assets/fonts/barlow-condensed-800.woff2) format("woff2")}
+@font-face{font-family:"Source Sans 3";font-weight:600;font-display:swap;src:url(/assets/fonts/source-sans-3-600.woff2) format("woff2")}
+@font-face{font-family:"Source Sans 3";font-weight:700;font-display:swap;src:url(/assets/fonts/source-sans-3-700.woff2) format("woff2")}
+
+/* ---- Lead Desk tokens (same hooks as v01 / v03) ---- */
+html:not([data-theme=light]) body[data-theme=v02]{
+  --color-bg:#0c1424;--color-surface:#152033;--color-surface2:#1b2940;--color-surface3:#22324c;
+  --color-line:#2a3b52;--color-fg:#e7eef6;--color-muted:#9aafc4;--color-faint:#6e849c;
+  --color-accent:#ffc107;--color-accent-2:#ffe08a;--color-ink:#0c1424;
+  --color-good:#3ddc97;--color-warn:#ffb074;--color-bad:#ff5c5c;--color-info:#7ec8ff}
+body[data-theme=v02]{
+  --font-sans:"Source Sans 3","Segoe UI",sans-serif;
+  --font-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --radius-sm:8px;--radius-md:8px;--radius-lg:8px;
+  font-family:"Source Sans 3","Segoe UI",sans-serif}
+body[data-theme=v02] .bam-brand,
+body[data-theme=v02] .bam-title,
+body[data-theme=v02] main h1,
+body[data-theme=v02] main h2,
+body[data-theme=v02] aside h2,
+body[data-theme=v02] [role=dialog] h2{
+  font-family:"Barlow Condensed","Arial Narrow",sans-serif;
+  font-weight:800;letter-spacing:.04em;text-shadow:none}
+body[data-theme=v02] .bam-brand{font-size:1.45rem}
+body[data-theme=v02] .bam-title{color:var(--color-accent);font-size:1.35rem}
+body[data-theme=v02] .bam-nav,
+body[data-theme=v02] .bam-nav-sub,
+body[data-theme=v02] .bam-top,
+body[data-theme=v02] .bam-um{letter-spacing:.04em;font-weight:700}
+body[data-theme=v02] .bam-nav.is-on{box-shadow:inset 3px 0 0 var(--color-accent)}
+body[data-theme=v02] .btn{border-radius:8px;letter-spacing:.03em;font-weight:700}
+body[data-theme=v02] .side-brand,
+body[data-theme=v02] main>header{background-image:none}
+body[data-theme=v02][data-mode=white]{
+  --color-bg:#f7f4ee;--color-surface:#fffdf8;--color-surface2:#efeae0;--color-surface3:#e5dfd3;
+  --color-line:#d9d1c3;--color-fg:#1a1a1a;--color-muted:#5c564c;--color-faint:#8a8174;
+  --color-accent:#ffc107;--color-accent-2:#b38900;--color-ink:#1a1a1a;
+  --color-good:#1b7a3a;--color-warn:#b45309;--color-bad:#b3261e;--color-info:#0b5cad}
+
+/* ---- Inventory hub chrome. V02.js sets html[data-hub-theme=v02]. ---- */
+html[data-hub-theme=v02]{
+  --bg:#0c1424;--surface:#152033;--surface2:#1b2940;--surface3:#22324c;--border:#2a3b52;
+  --text:#e7eef6;--muted:#9aafc4;--faint:#6e849c;--accent:#ffc107;--accent-dim:rgba(255,193,7,.18);
+  --font:"Source Sans 3","Segoe UI",sans-serif;--display:"Barlow Condensed","Arial Narrow",sans-serif}
+html[data-hub-theme=v02] body{background:var(--bg);color:var(--text);font-family:var(--font)}
+html[data-hub-theme=v02] .side,
+html[data-hub-theme=v02] .topbar{background:var(--surface);border-color:var(--border)}
+html[data-hub-theme=v02] .side-brand,
+html[data-hub-theme=v02] .topbar h1,
+html[data-hub-theme=v02] .panel-h h2,
+html[data-hub-theme=v02] .stat b,
+html[data-hub-theme=v02] .tbl th{
+  font-family:"Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.04em}
+html[data-hub-theme=v02] .side-motto{border-radius:8px;color:#0c1424}
+html[data-hub-theme=v02] .stat,
+html[data-hub-theme=v02] .panel,
+html[data-hub-theme=v02] .btn,
+html[data-hub-theme=v02] input:not([type=checkbox]):not([type=radio]),
+html[data-hub-theme=v02] select,
+html[data-hub-theme=v02] textarea{border-radius:8px}
+html[data-hub-theme=v02] .stat,
+html[data-hub-theme=v02] .panel{box-shadow:0 8px 24px rgba(4,8,16,.35)}
+html[data-hub-theme=v02] .side-nav a.on{box-shadow:inset 3px 0 0 var(--accent)}
+html[data-hub-theme=v02][data-theme=light]{
+  --bg:#f7f4ee;--surface:#fffdf8;--surface2:#efeae0;--surface3:#e5dfd3;--border:#d9d1c3;
+  --text:#1a1a1a;--muted:#5c564c;--faint:#8a8174;--accent:#ffc107;--accent-dim:rgba(255,193,7,.28)}
+html[data-hub-theme=v02][data-theme=light] .stat,
+html[data-hub-theme=v02][data-theme=light] .panel{box-shadow:0 8px 20px rgba(40,32,16,.08)}
+html[data-hub-theme=v02][data-theme=light] .side-motto{color:#1a1a1a}
+
+/* ---- Theme picker. Order is Command, V02, Jobsite. ---- */
+.hub-v02-pick{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  margin:0 0 14px;padding:10px 12px;border:2px solid var(--border,#2a3b52);border-radius:8px;
+  background:var(--surface,#152033);color:var(--text,#e7eef6);
+  font:700 14px/1 "Source Sans 3","Segoe UI",sans-serif}
+.hub-v02-lab{
+  font-family:"Barlow Condensed","Arial Narrow",sans-serif;
+  letter-spacing:.08em;text-transform:uppercase;font-size:15px;font-weight:800;margin-right:4px}
+.hub-v02-pick button{
+  min-height:36px;padding:0 14px;border-radius:8px;border:2px solid var(--border,#2a3b52);
+  background:transparent;color:inherit;cursor:pointer;
+  font:800 15px/1 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.06em;text-transform:uppercase}
+.hub-v02-pick button[aria-pressed=true]{background:#ffc107;border-color:#ffc107;color:#1a1a1a}
+.hub-v02-pick button:hover{border-color:#ffc107}
+
+/* ---- URL uploader + URL LISTINGS (same hooks as v01 / v03) ---- */
+html[data-hub-theme=v02] .bu,
+body[data-theme=v02] .bu,
+.ul-wrap[data-ui-theme=v02] .bu{
+  --bu-y:#ffc107;--bu-ink:#0c1424;--bu-bg:#152033;--bu-in:#0c1424;--bu-tx:#e7eef6;--bu-dim:#9aafc4;
+  --bu-ln:#2a3b52;--bu-row:#1b2940;--bu-row2:#18263a;--bu-err:#ffb074;--bu-link:#7ec8ff;
+  --bu-h:"Barlow Condensed","Arial Narrow",sans-serif;--bu-b:"Source Sans 3","Segoe UI",sans-serif;
+  border-width:2px;border-radius:8px;box-shadow:0 8px 24px rgba(4,8,16,.35)}
+html[data-hub-theme=v02] .bu-title,
+body[data-theme=v02] .bu-title,
+.ul-wrap[data-ui-theme=v02] .bu-title{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:800;letter-spacing:.05em}
+html[data-hub-theme=v02] .bu-in,
+html[data-hub-theme=v02] .bu-btn,
+html[data-hub-theme=v02] .bu-qs,
+html[data-hub-theme=v02] .bu-open,
+body[data-theme=v02] .bu-in,
+body[data-theme=v02] .bu-btn,
+.ul-wrap[data-ui-theme=v02] .bu-in,
+.ul-wrap[data-ui-theme=v02] .bu-btn,
+.ul-wrap[data-ui-theme=v02] .bu-qs,
+.ul-wrap[data-ui-theme=v02] .bu-open{border-radius:8px}
+html[data-hub-theme=v02] .bu-btn,
+body[data-theme=v02] .bu-btn,
+.ul-wrap[data-ui-theme=v02] .bu-btn{box-shadow:none}
+.ul-wrap[data-ui-theme=v02]{
+  --ul-y:#ffc107;--ul-bg:#152033;--ul-tx:#e7eef6;--ul-dim:#9aafc4;--ul-ln:#2a3b52;
+  --ul-row:#1b2940;--ul-row2:#18263a;
+  --ul-h:"Barlow Condensed","Arial Narrow",sans-serif;--ul-b:"Source Sans 3","Segoe UI",sans-serif}
+.ul-wrap[data-ui-theme=v02] .ul-box{border-radius:8px;border-width:2px;box-shadow:0 8px 24px rgba(4,8,16,.35)}
+.ul-wrap[data-ui-theme=v02] .ul-head h2{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:800;letter-spacing:.05em}
+.ul-wrap[data-ui-theme=v02] .ul-chip,
+.ul-wrap[data-ui-theme=v02] .ul-act,
+.ul-wrap[data-ui-theme=v02] .ul-b,
+.ul-wrap[data-ui-theme=v02] .ul-q input{border-radius:8px}
+
+/* White mode on the URL block */
+html[data-hub-theme=v02][data-theme=light] .bu,
+body[data-theme=v02][data-mode=white] .bu,
+.ul-wrap[data-ui-theme=v02][data-ui-mode=white] .bu{
+  --bu-bg:#fffdf8;--bu-in:#fff;--bu-tx:#1a1a1a;--bu-dim:#5c564c;--bu-ln:#d9d1c3;
+  --bu-row:#fffdf8;--bu-row2:#f7f4ee;--bu-err:#b3261e;--bu-link:#0b5cad;--bu-ink:#1a1a1a;
+  border-color:#1a1a1a;box-shadow:0 8px 20px rgba(40,32,16,.08)}
+.ul-wrap[data-ui-theme=v02][data-ui-mode=white]{
+  --ul-bg:#fffdf8;--ul-tx:#1a1a1a;--ul-dim:#5c564c;--ul-ln:#d9d1c3;--ul-row:#fffdf8;--ul-row2:#f7f4ee}
+.ul-wrap[data-ui-theme=v02][data-ui-mode=white] .ul-box{border-color:#1a1a1a;box-shadow:0 8px 20px rgba(40,32,16,.08)}
+html[data-hub-theme=v02][data-theme=light] .bu-title,
+body[data-theme=v02][data-mode=white] .bu-title,
+.ul-wrap[data-ui-theme=v02][data-ui-mode=white] .ul-head h2,
+.ul-wrap[data-ui-mode=white].ul-wrap[data-ui-theme=v02] .ul-head h2{color:#1a1a1a;background:#ffc107}
+
+/* ---- Call log ---- */
+body[data-theme=v02] .cl-box{
+  --cl-y:#ffc107;--cl-bg:#152033;--cl-in:#0c1424;--cl-tx:#e7eef6;--cl-dim:#9aafc4;--cl-ln:#2a3b52;--cl-row:#1b2940;
+  --cl-h:"Barlow Condensed","Arial Narrow",sans-serif;--cl-b:"Source Sans 3","Segoe UI",sans-serif;
+  border-width:2px;border-radius:8px;box-shadow:0 8px 24px rgba(4,8,16,.35)}
+body[data-theme=v02] .cl-title{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:800;letter-spacing:.05em}
+body[data-theme=v02] .cl-note,
+body[data-theme=v02] .cl-save,
+body[data-theme=v02] .cl-sb,
+body[data-theme=v02] .cl-time{border-radius:8px}
+body[data-theme=v02] .cl-save{box-shadow:none}
+body[data-theme=v02][data-mode=white] .cl-box{
+  --cl-bg:#fffdf8;--cl-in:#fff;--cl-tx:#1a1a1a;--cl-dim:#5c564c;--cl-ln:#d9d1c3;--cl-row:#fffdf8;
+  border-color:#1a1a1a;box-shadow:0 8px 20px rgba(40,32,16,.08)}
+body[data-theme=v02][data-mode=white] .cl-title{color:#1a1a1a;background:#ffc107;padding:3px 8px}
