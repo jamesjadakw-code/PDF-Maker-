@@ -95,6 +95,18 @@
   }
   .lead-form input, .lead-form textarea, .sheet-edit input, .sheet-edit textarea { width:100%; }
   .hint { font-size:11px; color:var(--dim); line-height:1.4; }
+  .spec-board {
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+    gap:8px; margin:0 0 16px;
+  }
+  .spec-board .cell {
+    background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 10px;
+  }
+  .spec-board .cell b {
+    display:block; font:550 10px/1.2 var(--font); letter-spacing:.06em;
+    text-transform:uppercase; color:var(--dim); margin-bottom:4px;
+  }
+  .spec-board .cell span { font:650 13px/1.3 var(--font); }
   details.sheet-edit { margin:12px 0 20px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px 12px; }
   details.sheet-edit summary { cursor:pointer; font:650 13px/2 var(--font); }
   a.ghost { display:inline-flex; align-items:center; text-decoration:none; }
@@ -220,6 +232,7 @@
       <div id="verifyBanner" class="no-print" hidden></div>
       <div id="pairBar" class="no-print" hidden></div>
       <div id="unitMatches" class="match-list no-print"></div>
+      <div id="unitSpecBoard" class="spec-board no-print" hidden></div>
       <details class="sheet-edit no-print">
         <summary>Edit brochure copy</summary>
         <label>Title</label><input id="inTitle" />
@@ -640,7 +653,9 @@ function showDraft(draft) {
   applyBrochure(draft.brochure || {});
   $("unitHeading").textContent = (draft.listing && draft.listing.title) || draft.brochure.title || "Unit";
   const listing = draft.listing || {};
-  $("unitMeta").innerHTML = `<span class="pill ${esc(draft.status)}">${esc(draft.status.replaceAll("_", " "))}</span> · ${esc(listing.price || listing.askingPrice || "")} · ${(listing.photos || []).length} listing photos`;
+  const attach = (listing.attachments || []).join(", ");
+  $("unitMeta").innerHTML = `<span class="pill ${esc(draft.status)}">${esc(draft.status.replaceAll("_", " "))}</span> · ${esc([listing.make, listing.model, listing.year].filter(Boolean).join(" "))} · ${esc(listing.price || listing.askingPrice || "")} · ${(listing.photos || []).length} listing photos${attach ? " · " + esc(attach) : ""}`;
+  paintSpecBoard(listing);
   const banner = $("verifyBanner");
   banner.hidden = false;
   $("fbVerify").disabled = draft.status !== "pending_verification";
@@ -673,6 +688,20 @@ function showDraft(draft) {
     link.removeAttribute("href");
   }
   paintList();
+}
+
+function paintSpecBoard(listing) {
+  const board = $("unitSpecBoard");
+  const rows = listing.spec_sheet || [];
+  if (!rows.length) {
+    board.innerHTML = "";
+    board.hidden = true;
+    return;
+  }
+  board.hidden = false;
+  board.innerHTML = rows.map(row =>
+    `<div class="cell"><b>${esc(row.label)}</b><span>${esc(row.value)}</span></div>`
+  ).join("");
 }
 
 function showLead(lead) {

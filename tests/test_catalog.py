@@ -6,8 +6,9 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.error import URLError
 
-from crm.catalog import process_incoming_third_party_listing
+from crm.catalog import lookup_catalog, process_incoming_third_party_listing
 from crm.enrich import enrich_machine_with_oem_specs
+from crm.machine import identify_machine, make_from_model
 from crm.vision import detect_machine_from_image
 
 
@@ -38,6 +39,49 @@ class CatalogIngestTests(unittest.TestCase):
         self.assertTrue(out["catalog_hit"])
         self.assertFalse(out["is_staged"])
         self.assertEqual(out["source_platform"], "Third-Party Scrape Stream")
+
+    def test_rt125_is_ditch_witch_not_vermeer_rtx(self):
+        self.assertEqual(make_from_model("RT125"), "Ditch Witch")
+        self.assertEqual(make_from_model("RTX1250"), "Vermeer")
+        ident = identify_machine({
+            "title": "Ditch Witch RT125 with vibratory plow and rear reel carrier",
+        })
+        self.assertEqual(ident["make"], "Ditch Witch")
+        self.assertEqual(ident["model"], "RT125")
+        self.assertEqual(ident["family"], "trencher")
+        self.assertIn("plow", ident["attachments"])
+        self.assertIn("reel", ident["attachments"])
+        dw = lookup_catalog("Ditch Witch", "RT125")
+        vm = lookup_catalog("Vermeer", "RT125")
+        self.assertEqual(dw["payload"].get("base_hp"), 131)
+        self.assertFalse(vm["payload"])
+        wrong = identify_machine({"make": "Vermeer", "model": "RT125", "title": "RT125 Quad"})
+        self.assertEqual(wrong["make"], "Ditch Witch")
+
+    def test_rt125_plow_and_reel_show_full_spec_sheet(self):
+        item = {
+            "title": "Ditch Witch RT125 with vibratory plow and rear reel carrier",
+            "description": "Quad tracks laying conduit.",
+        }
+        with patch("crm.enrich.lookup_specs") as lookup:
+            out = process_incoming_third_party_listing(item)
+        lookup.assert_not_called()
+        self.assertEqual(out["make"], "Ditch Witch")
+        self.assertEqual(out["model"], "RT125")
+        self.assertEqual(out["engine_power"], "131 hp")
+        self.assertEqual(out["plow_depth"], "42 in")
+        self.assertIn("plow", out["attachments"])
+        self.assertIn("reel", out["attachments"])
+        self.assertFalse(out.get("pullback_force"))
+        self.assertNotEqual(out.get("engine_power"), "121 hp")
+        labels = {row["label"]: row["value"] for row in out["spec_sheet"]}
+        self.assertEqual(labels["Make"], "Ditch Witch")
+        self.assertEqual(labels["Model"], "RT125")
+        self.assertEqual(labels["Power"], "131 hp")
+        self.assertEqual(labels["Plow depth"], "42 in")
+        self.assertEqual(labels["Undercarriage"], "Quad")
+        self.assertIn("reel", labels["Attachments"])
+        self.assertTrue(any("reel" in str(row.get("value", "")).lower() or "reel" in str(row.get("label", "")).lower() for row in out["spec_sheet"]))
 
     def test_rtx1250_plow_gets_plow_depth_not_pullback(self):
         item = {

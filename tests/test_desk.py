@@ -227,6 +227,7 @@ class DeskServerTests(unittest.TestCase):
         self.assertIn("/for/", html)
         self.assertIn("Prepare PDF", html)
         self.assertIn("Ingest buyer", html)
+        self.assertIn("unitSpecBoard", html)
         self.assertNotIn("Theme</span>", html)
         self.assertNotIn("Post to website", html)
 

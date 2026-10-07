@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 
-from crm.machine import identify_machine, spec_fields_for
+from crm.machine import SPEC_FIELDS, identify_machine, spec_fields_for
 
 # Pre-seeded baseline figures. Keys are compact make / compact model.
 MANUFACTURER_SPEC_CATALOG = {
@@ -104,15 +104,32 @@ MANUFACTURER_SPEC_CATALOG = {
             "configuration": "Ride-on trencher",
             "default_app": "Trenching",
         },
+        "rt125": {
+            "base_hp": 131,
+            "tracks": "Quad",
+            "configuration": "Ride-on tractor",
+            "default_app": "Trenching/Plowing",
+            "fuel": "Diesel",
+            "ground_drive": "Hydrostatic",
+        },
         "attachments": {
             "rocksaw": {
                 "notes": "Saw depth depends on the mounted wheel",
                 "token": "rocksaw",
             },
             "vibratory plow": {
+                "max_depth": "42 in",
+                "notes": "Front vibratory plow for cable and conduit",
                 "token": "plow",
             },
             "reel": {
+                "type": "Rear reel carrier",
+                "utility": "Fiber and cable payoff",
+                "token": "reel",
+            },
+            "reel carrier": {
+                "type": "Rear reel carrier",
+                "utility": "Fiber and cable payoff",
                 "token": "reel",
             },
         },
@@ -161,6 +178,47 @@ _ATTACH_NAMED = (
     ("max_dig_depth", "digging_depth", "backhoe"),
     ("capacity", "bucket_capacity", "bucket"),
 )
+
+
+def spec_sheet(listing: dict) -> list[dict]:
+    """Every identity, OEM, and attachment figure for the desk and brochure."""
+    ident = identify_machine(listing)
+    rows: list[dict] = []
+    seen: set[str] = set()
+
+    def add(label: str, value) -> None:
+        text = str(value or "").strip()
+        if not text or text.upper() in {"N/A", "NA", "NONE"}:
+            return
+        key = re.sub(r"[^a-z0-9]+", "", label.lower())
+        if not key or key in seen:
+            return
+        seen.add(key)
+        rows.append({"label": label, "value": text})
+
+    add("Year", listing.get("year") or ident.get("year"))
+    add("Make", ident.get("make") or listing.get("make"))
+    add("Model", ident.get("model") or listing.get("model"))
+    add("Category", ident.get("category") or listing.get("category"))
+    add("Hours", listing.get("hours"))
+    for key, label, _needles, _wire, _families, _needed in SPEC_FIELDS:
+        add(label, listing.get(key))
+    for label, value in listing.get("oemSpecs") or []:
+        add(str(label), value)
+    attachments = ident.get("attachments") or listing.get("attachments") or []
+    if attachments:
+        add("Attachments", ", ".join(str(item) for item in attachments))
+    for item in listing.get("compiled_attachments") or []:
+        name = str(item.get("attachment_name") or item.get("token") or "Attachment")
+        add(name, item.get("type") or item.get("utility") or item.get("notes") or "mounted")
+        for field, label in (
+            ("model", name + " model"),
+            ("max_depth", "Plow depth"),
+            ("cut_depth", "Saw depth"),
+            ("notes", name + " notes"),
+        ):
+            add(label, item.get(field))
+    return rows
 
 
 def process_incoming_third_party_listing(listing: dict, image_path: str | None = None, fetcher=None) -> dict:
@@ -241,6 +299,8 @@ def apply_catalog(listing: dict, ident: dict | None = None) -> dict:
         ("Configuration", "configuration"),
         ("Application", "default_app"),
         ("Application", "application"),
+        ("Fuel", "fuel"),
+        ("Ground drive", "ground_drive"),
         ("Blade capacity", "blade_capacity"),
     ):
         value = hit["payload"].get(key)
@@ -346,8 +406,13 @@ def _model_matches(compact: str, key: str) -> bool:
         return False
     if compact == token:
         return True
+    # RT125 is not RTX1250. Require a letter suffix (420F), never a digit slip.
     rest = compact[len(token):] if compact.startswith(token) else ""
-    return bool(rest) and rest[0].isalpha()
+    if not rest or not rest[0].isalpha():
+        return False
+    if token.startswith("rt") and not token.startswith("rtx") and compact.startswith("rtx"):
+        return False
+    return True
 
 
 def _family_from_payload(row: dict) -> tuple[str, str]:

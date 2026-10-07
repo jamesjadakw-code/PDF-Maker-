@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from crm.catalog import apply_catalog, catalog_covers
+from crm.catalog import apply_catalog, catalog_covers, spec_sheet
 from crm.machine import (
     SPEC_FIELDS,
     field_for_label,
@@ -103,12 +103,17 @@ def _enrich(scraped_item: dict, fetcher=None) -> dict:
         else:
             scraped_item.setdefault(key, scraped_item.get(key) or "")
 
-    if filled and not rows:
-        rows = _rows_from_named(scraped_item, allowed)
+    named_rows = _rows_from_named(scraped_item, allowed)
+    merged_rows: list[tuple[str, str]] = []
+    for row in named_rows + list(rows):
+        if row not in merged_rows:
+            merged_rows.append(row)
+    rows = merged_rows
     if rows:
         scraped_item["oemSpecs"] = rows
     else:
         scraped_item.setdefault("oemSpecs", [])
+    scraped_item["spec_sheet"] = spec_sheet(scraped_item)
 
     scraped_item["is_oem_enriched"] = bool(filled or rows)
     if scraped_item["is_oem_enriched"]:
