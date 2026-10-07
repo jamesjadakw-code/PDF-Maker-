@@ -195,10 +195,218 @@
     #sheet, #unitPane { display:block !important; }
   }
 </style>
+<style>
+@font-face{font-family:Inter;font-style:normal;font-weight:400;font-display:swap;src:url("assets/fonts/inter-latin-400.woff2") format("woff2")}
+@font-face{font-family:Inter;font-style:normal;font-weight:500;font-display:swap;src:url("assets/fonts/inter-latin-500.woff2") format("woff2")}
+@font-face{font-family:Inter;font-style:normal;font-weight:600;font-display:swap;src:url("assets/fonts/inter-latin-600.woff2") format("woff2")}
+@font-face{font-family:Inter;font-style:normal;font-weight:700;font-display:swap;src:url("assets/fonts/inter-latin-700.woff2") format("woff2")}
+body.has-inbox{display:block;height:100%;overflow:hidden;background:#fbfbfc;color:#1c1d22;font:13px/1.45 Inter,system-ui,sans-serif}
+body.has-inbox>header.bar,body.has-inbox>details.paste,body.has-inbox>div.split{display:none !important}
+body.has-inbox.quote-open{display:flex !important;flex-direction:column;overflow:auto;height:auto;min-height:100%;background:#e7e5e0}
+body.has-inbox.quote-open>header.bar{display:flex !important}
+body.has-inbox.quote-open>details.paste{display:block !important}
+body.has-inbox.quote-open>div.split{display:grid !important}
+body.has-inbox.quote-open .app,body.has-inbox.quote-open .abar,body.has-inbox.quote-open .ix-note,body.has-inbox.quote-open .scrim,body.has-inbox.quote-open .deal,body.has-inbox.quote-open #toasts{display:none !important}
+.app,.app button,.app input,.app textarea,.abar,.abar button,.deal,.deal button,.deal input,.deal textarea,#toasts{font-family:Inter,system-ui,sans-serif}
+.app{display:grid;grid-template-columns:232px 1fr;height:100%;min-height:0}
+.app nav{border-right:1px solid #ececf0;background:#f6f6f8;padding:14px 10px;display:flex;flex-direction:column;gap:2px;overflow:auto}
+.app .logo{position:static;width:auto;height:auto;display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:2px 6px 14px}
+.app .logo img{width:180px;height:auto;border-radius:8px;box-shadow:0 1px 2px #0001,0 0 0 1px #0000000d}
+.app .logo b{font-size:14px;font-weight:650;letter-spacing:-.01em}
+.app .logo b span{color:#6f7180;font-weight:500}
+.app .ws{font-size:11px;color:#9a9cab;text-transform:uppercase;letter-spacing:.06em;padding:12px 8px 4px}
+.app .ni{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:6px;color:#3b3d48;cursor:pointer}
+.app .ni svg{width:16px;height:16px;flex:none;color:#6f7180}
+.app .ni:hover{background:#ececf1}
+.app .ni.on{background:#e8e8f0;color:#1c1d22;font-weight:550}
+.app .ni em{margin-left:auto;font-style:normal;color:#9a9cab;font-size:12px}
+.app .ni .dot{width:7px;height:7px;border-radius:9px;background:#e5484d;margin-left:auto}
+.app .feed i{width:7px;height:7px;border-radius:9px;background:#c5c6d0;display:inline-block}
+.app .ni.on .feed i,.app .ni.live .feed i{background:#18a957}
+.ix-main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.ix-head{height:52px;display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid #ececf0;background:#fff}
+.ix-crumb{color:#6f7180}
+.ix-crumb b{color:#1c1d22;font-weight:600}
+.ix-search{margin-left:auto;display:flex;align-items:center;gap:8px;border:1px solid #e2e2e8;border-radius:8px;padding:5px 10px;width:340px;color:#9a9cab;background:#fafafb}
+.ix-search input{border:0;outline:0;flex:1;font:inherit;background:transparent;color:#1c1d22;min-width:0}
+.ix-search kbd,.abar kbd,.ix-tabs kbd{font:500 11px Inter,system-ui,sans-serif;border:1px solid #e2e2e8;border-bottom-width:2px;border-radius:4px;padding:0 5px;color:#6f7180;background:#fff}
+.ix-btn{border:1px solid #e2e2e8;background:#fff;border-radius:7px;padding:6px 11px;font:500 13px Inter,system-ui,sans-serif;color:#1c1d22;cursor:pointer;display:inline-flex;gap:7px;align-items:center}
+.ix-btn.ix-pri{background:#5b5bd6;border-color:#5b5bd6;color:#fff}
+.ix-btn:hover{border-color:#cfcfd8}
+.ix-sub{display:flex;align-items:center;gap:6px;padding:9px 18px;border-bottom:1px solid #ececf0;background:#fff;flex-wrap:wrap}
+.ix-chip{border:1px dashed #e2e2e8;border-radius:20px;padding:2px 10px;color:#6f7180;cursor:pointer;font-size:12px;background:#fff}
+.ix-chip.on{border-style:solid;border-color:#5b5bd6;background:#eeeefc;color:#5b5bd6;font-weight:550}
+.ix-counts{margin-left:auto;color:#6f7180;font-size:12px}
+.ix-counts b{color:#1c1d22}
+.ix-pull{display:flex;gap:8px;padding:8px 18px;background:#fff7f7;border-bottom:1px solid #ffd9da}
+.ix-pull textarea{flex:1;min-height:52px;border:1px solid #e2e2e8;border-radius:8px;padding:8px;font:12px Inter,system-ui,sans-serif}
+.ix-split{flex:1;display:grid;grid-template-columns:40% 60%;min-height:0}
+.ix-list{border-right:1px solid #ececf0;overflow:auto;background:#fff}
+.ix-detail{overflow:auto;padding:0 0 128px;position:relative;background:#fbfbfc}
+.ix-grp{position:sticky;top:0;background:#f8f8fa;border-bottom:1px solid #ececf0;padding:6px 18px;font-size:12px;color:#6f7180;font-weight:550;z-index:1;display:flex;justify-content:space-between}
+.ix-row{display:grid;grid-template-columns:18px 44px 1fr auto;gap:10px;padding:10px 18px;border-bottom:1px solid #f2f2f5;cursor:pointer;align-items:center;background:#fff;color:#1c1d22;text-align:left;width:100%}
+.ix-row:hover{background:#fafafc}
+.ix-row.on{background:#eeeefc;box-shadow:inset 2px 0 #5b5bd6}
+.ix-st{width:14px;height:14px;border-radius:50%;border:1.5px solid #9a9cab}
+.ix-st.fresh{border-color:#e5484d;background:radial-gradient(#e5484d 40%,transparent 45%)}
+.ix-thumb{width:44px;height:34px;border-radius:6px;object-fit:cover;background:#111}
+.ix-ph{display:block}
+.ix-ava{width:34px;height:34px;border-radius:50%;background:#eeeefc;color:#5b5bd6;display:grid;place-items:center;font-size:11px;font-weight:700}
+.ix-mid{min-width:0}
+.ix-rt{font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ix-rm{color:#6f7180;font-size:12px;display:flex;gap:8px;align-items:center;margin-top:2px;min-width:0}
+.ix-rm span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ix-badge{font-size:11px;border-radius:4px;padding:0 6px;font-weight:550;border:1px solid;flex:none}
+.ix-badge.trencher{color:#a16207;background:#fefce8;border-color:#fde68a}
+.ix-badge.rock{color:#b91c1c;background:#fef2f2;border-color:#fecaca}
+.ix-badge.hdd{color:#1d4ed8;background:#eff6ff;border-color:#bfdbfe}
+.ix-badge.blast{color:#7e22ce;background:#faf5ff;border-color:#e9d5ff}
+.ix-badge.other{color:#3f3f46;background:#f4f4f5;border-color:#e4e4e7}
+.ix-end{display:flex;gap:8px;align-items:center}
+.ix-av{display:flex}
+.ix-av span{width:23px;height:23px;border-radius:50%;background:#dcdcf7;color:#5b5bd6;font-size:9px;font-weight:700;display:grid;place-items:center;border:2px solid #fff;margin-left:-6px}
+.ix-score{font-weight:650;font-size:12px;border-radius:20px;padding:2px 8px}
+.ix-score.hot{background:#e7f7ee;color:#18a957}
+.ix-score.warm{background:#fdf3e2;color:#d97706}
+.ix-score.cool{background:#f1f1f4;color:#6f7180}
+.ix-more{padding:14px;text-align:center;color:#9a9cab;font-size:12px}
+.ix-tabs{position:sticky;top:0;z-index:4;display:flex;gap:2px;padding:0 18px;background:#fff;border-bottom:1px solid #ececf0;align-items:center;flex-wrap:nowrap}
+.ix-tabs>span{padding:11px 8px;color:#6f7180;font-weight:550;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+.ix-tabs>span.on{color:#1c1d22;border-bottom-color:#5b5bd6}
+.ix-oem{display:flex;gap:4px;margin-left:auto;flex-wrap:nowrap;padding:8px 0}
+.ix-oem span{background:#fff;border:1px solid #e2e2e8;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;cursor:pointer;display:flex;gap:6px;align-items:center}
+.ix-oem span.on{background:#eeeefc;color:#5b5bd6;border-color:#5b5bd6}
+.ix-oem i{width:9px;height:9px;border-radius:50%;display:block}
+.ix-oem i.cat{background:#111}.ix-oem i.jd{background:#367c2b}.ix-oem i.case{background:#c41230}.ix-oem i.dw{background:#e87722}.ix-oem i.vm{background:#f5c518}
+.ix-ins{display:grid;grid-template-columns:200px 1fr;gap:18px;padding:18px 28px 0}
+.ix-hero{width:200px;height:116px;border-radius:10px;object-fit:cover;background:#111}
+.ix-hero-empty{display:grid;place-items:center;color:#9a9cab;font-size:12px;text-align:center;padding:12px}
+.ix-detail h1{font-size:24px;font-weight:650;letter-spacing:-.02em;margin:4px 0 0}
+.ix-kicker{display:flex;gap:8px;align-items:center;color:#6f7180;font-size:12px}
+.ix-alert{display:flex;gap:10px;align-items:center;background:#fff7f7;border:1px solid #ffd9da;color:#9f1d22;border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:12px}
+.ix-alert b{background:#e5484d;color:#fff;border-radius:5px;padding:1px 6px;font-size:11px}
+.ix-facts{display:grid;grid-template-columns:88px minmax(0,1fr) 88px minmax(0,1fr);gap:7px 12px;margin:12px 0 4px;font-size:13px}
+.ix-facts dd{min-width:0}
+.ix-facts dt{color:#6f7180}
+.ix-actions{display:flex;gap:8px;margin:8px 0 4px}
+.ix-sec{font-size:12px;font-weight:600;color:#6f7180;text-transform:uppercase;letter-spacing:.05em;margin:18px 28px 10px;display:flex;justify-content:space-between}
+.ix-sec .ix-link,.ix-link{text-transform:none;font-weight:500;color:#5b5bd6;cursor:pointer;letter-spacing:0}
+.ix-quiet{text-transform:none;font-weight:500}
+.ix-mc{border:1px solid #ececf0;border-radius:12px;background:#fff;padding:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 28px;box-shadow:0 1px 2px #0000000a}
+.ix-buyer{border:1px solid #ececf0;border-radius:10px;padding:10px 12px;cursor:pointer;position:relative}
+.ix-buyer.on{border-color:#5b5bd6;box-shadow:0 0 0 3px #5b5bd622}
+.ix-buyer .ix-n{font-weight:600;padding-right:48px}
+.ix-buyer .ix-c{color:#6f7180;font-size:12px}
+.ix-wants{margin-top:6px;color:#3b3d48 !important}
+.ix-why{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
+.ix-why span{font-size:11px;background:#f4f4f5;border-radius:4px;padding:1px 6px;color:#4b4d5a}
+.ix-stage{display:flex;gap:4px;margin-top:8px}
+.ix-stage i{flex:1;height:4px;border-radius:3px;background:#ececf2}
+.ix-stage i.f{background:#5b5bd6}
+.ix-ring{position:absolute;right:12px;top:12px;width:42px;height:42px}
+.ix-pad{padding:0 28px 8px}
+.ix-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ix-card{border:1px solid #ececf0;border-radius:12px;padding:14px;background:#fff}
+.ix-name{font-weight:600;font-size:15px}
+.ix-props{display:grid;grid-template-columns:90px 1fr;margin:10px 0 0;gap:4px 8px}
+.ix-props dt{color:#6f7180}
+.ix-quote{margin:8px 0 0;color:#6f7180;font-style:italic}
+.ix-tl div{display:flex;gap:10px;padding:6px 0;color:#3b3d48;font-size:12.5px}
+.ix-tl i{width:8px;height:8px;border-radius:50%;background:#5b5bd6;margin-top:5px;flex:none}
+.ix-tl small{color:#9a9cab}
+.abar{position:fixed;left:calc(232px + (100vw - 232px) * .7);transform:translateX(-50%);bottom:22px;display:flex;gap:4px;background:#1c1d22;color:#fff;border-radius:12px;padding:6px;box-shadow:0 10px 30px #0003;z-index:5;white-space:nowrap}
+.abar button{background:transparent;border:0;color:#e9e9ee;font:500 12.5px Inter,system-ui,sans-serif;padding:7px 10px;border-radius:8px;cursor:pointer;display:flex;gap:7px;align-items:center;letter-spacing:0;text-transform:none;min-height:0}
+.abar button:hover{background:#ffffff1a}
+.abar kbd{background:#ffffff14;border-color:#ffffff22;color:#cfcfd6}
+.abar .sep{width:1px;background:#ffffff22;margin:4px 2px}
+.ix-note{position:fixed;left:248px;bottom:6px;width:300px;font-size:10.5px;line-height:1.35;color:#9a9cab;z-index:2}
+.scrim{position:fixed;inset:0;background:#0f0f1a33;opacity:0;pointer-events:none;transition:.2s;z-index:9}
+body.drawer-open .scrim{opacity:1;pointer-events:auto}
+.deal{position:fixed;top:10px;right:10px;bottom:10px;width:500px;background:#fff;border-radius:14px;box-shadow:0 20px 60px #0003;transform:translateX(110%);transition:transform .25s cubic-bezier(.2,.8,.2,1);z-index:10;display:flex;flex-direction:column}
+body.drawer-open .deal{transform:none}
+.deal header{height:52px;display:flex;align-items:center;gap:8px;padding:0 18px;border-bottom:1px solid #ececf0}
+.deal header b{font-size:15px}
+.deal header .ix-btn{margin-left:auto}
+.ix-fb{padding:18px;overflow:auto;flex:1}
+.ix-field{margin-bottom:12px}
+.ix-field label{display:block;font-size:12px;font-weight:550;color:#3b3d48;margin-bottom:5px}
+.ix-field input,.ix-field textarea{width:100%;border:1px solid #e2e2e8;border-radius:8px;padding:8px 10px;font:13px Inter,system-ui,sans-serif}
+.ix-field textarea{height:120px;resize:none}
+.ix-seg{display:flex;border:1px solid #e2e2e8;border-radius:8px;overflow:hidden}
+.ix-seg span{flex:1;text-align:center;padding:6px;font-size:12px;border-right:1px solid #e2e2e8;color:#6f7180;cursor:pointer}
+.ix-seg span.on{background:#eeeefc;color:#5b5bd6;font-weight:600}
+.ix-sf{padding:12px 18px;border-top:1px solid #ececf0;display:flex;gap:8px;justify-content:flex-end}
+#toasts{position:fixed;right:20px;top:64px;z-index:30;display:flex;flex-direction:column;gap:8px}
+.bam-toast{background:#fff;border:1px solid #ececf0;border-radius:10px;box-shadow:0 8px 24px #0000001f;padding:11px 14px;width:340px;font-size:13px;opacity:0;transform:translateY(8px);transition:.2s}
+.bam-toast.in{opacity:1;transform:none}
+@media(max-width:960px){.app{grid-template-columns:1fr}.app nav{display:none}.ix-split{grid-template-columns:1fr}.ix-list{max-height:42vh}.abar{left:50%}.ix-ins,.ix-mc,.ix-cols{grid-template-columns:1fr}}
+@media print{.app,.abar,.ix-note,.scrim,.deal,#toasts{display:none !important}body.has-inbox>div.split{display:block !important}}
+</style>
 </head>
-<body>
+<body class="has-inbox">
+<div class="app">
+<nav>
+  <div class="logo"><img src="assets/logo.jpg" alt="Big Ass Motors" /><b>Big Ass Motors <span>· CRM</span></b></div>
+  <div class="ni on" data-nav="inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/></svg>Match inbox<span class="dot"></span></div>
+  <div class="ni" data-nav="matching"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12h6l2-6 2 12 2-6h4"/></svg>Deal matching center<em>Live</em></div>
+  <div class="ni" data-nav="leads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 19c1-3 3.5-4 6-4s5 1 6 4"/><circle cx="17" cy="9" r="2"/><path d="M16 15c2.5.3 4 1.5 5 4"/></svg>Leads<em id="navLeads">0</em></div>
+  <div class="ni" data-nav="machines"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="8" width="18" height="8" rx="1"/><path d="M7 16v2M17 16v2M3 12h18"/></svg>Machines<em id="navMachines">0</em></div>
+  <div class="ni" data-nav="pipeline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h13"/></svg>Pipeline<em id="navPipeline">0</em></div>
+  <div class="ni" data-nav="quotes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M9 12h6M9 16h6"/></svg>Quote sheets<em id="navQuotes">0</em></div>
+  <div class="ws">Saved views</div>
+  <div class="ni" data-saved="trench-se"><span class="feed"><i></i></span>Trenchers · Southeast</div>
+  <div class="ni" data-saved="hdd-hours"><span class="feed"><i></i></span>HDD drills ≤ 2,500 hrs</div>
+  <div class="ni" data-saved="rock-tx"><span class="feed"><i></i></span>Rock saws · TX</div>
+  <div class="ni" data-saved="hot"><span class="feed"><i></i></span>Hot buyers (90+)</div>
+  <div class="ws">Feeds</div>
+  <div class="ni" data-feed="machinerytrader"><span class="feed"><i></i></span>MachineryTrader</div>
+  <div class="ni" data-feed="machinio"><span class="feed"><i></i></span>Machinio</div>
+  <div class="ni" data-feed="csv"><span class="feed"><i></i></span>Dealer CSV drops</div>
+</nav>
+<div class="ix-main">
+  <header class="ix-head">
+    <span class="ix-crumb">Workspace / <b id="crumb">Match inbox</b></span>
+    <div class="ix-search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg><input id="inboxQ" data-search placeholder="Search machines, buyers, cities..." /><kbd>/</kbd></div>
+    <button class="ix-btn" id="ixIngest" type="button">Simulate ingest <kbd>I</kbd></button>
+    <button class="ix-btn ix-pri" id="ixOpenDeal" type="button">Open deal</button>
+  </header>
+  <div class="ix-sub" id="chips">
+    <span class="ix-chip on" data-chip="All">All</span>
+    <span class="ix-chip" data-chip="New ingestion">New ingestion</span>
+    <span class="ix-chip" data-chip="Trencher">Trencher</span>
+    <span class="ix-chip" data-chip="Rock Saw">Rock Saw</span>
+    <span class="ix-chip" data-chip="HDD Drill">HDD Drill</span>
+    <span class="ix-chip" data-chip="Blasthole Drill">Blasthole Drill</span>
+    <span class="ix-chip" data-chip="Score">+ Score ≥ 85</span>
+    <span class="ix-chip" data-chip="Region">+ Region</span>
+    <span class="ix-counts" id="ixCounts"></span>
+  </div>
+  <div class="ix-pull" id="pullPaste" hidden>
+    <textarea id="pullHtml" placeholder="Facebook returned a login wall. Paste the listing page source, then pull. Photos from that page are saved onto the unit."></textarea>
+    <button class="ix-btn ix-pri" id="pullHtmlBtn" type="button">Pull pasted listing</button>
+  </div>
+  <div class="ix-split">
+    <div class="ix-list" id="ixList"></div>
+    <div class="ix-detail" id="ixDetail"></div>
+  </div>
+</div>
+</div>
+<div class="abar">
+  <button type="button" data-act="text">Text <kbd>T</kbd></button>
+  <button type="button" data-act="email">Email <kbd>E</kbd></button>
+  <button type="button" data-act="call">Log call <kbd>C</kbd></button>
+  <span class="sep"></span>
+  <button type="button" data-act="quote">Send quote sheet <kbd>Q</kbd></button>
+  <button type="button" data-act="link">Link to lead <kbd>L</kbd></button>
+  <button type="button" data-act="stage">Change stage <kbd>S</kbd></button>
+</div>
+<div class="ix-note">New pulls stay unverified until you verify. Asking price stays on this desk. Public price stays blank until you set it.</div>
+<div class="scrim" data-close></div>
+<aside class="deal" id="deal"></aside>
+<div id="toasts"></div>
 <header class="bar">
   <div class="mark">BAM <span>Desk</span></div>
+  <button class="ghost" id="backInbox" type="button">Match inbox</button>
   <input id="fbUrl" placeholder="Facebook Marketplace item URL" />
   <button class="export" id="fbExtract" type="button">Extract</button>
   <input id="q" placeholder="Search desk" />
@@ -527,6 +735,7 @@ function applyDesk(data) {
   const c = desk.counts || {};
   $("counts").textContent = (c.units || 0) + " units · " + (c.buyers || 0) + " buyers · " + (c.hot || 0) + " hot";
   paintList();
+  if (typeof paintInbox === "function") paintInbox();
 }
 
 async function refreshDesk() {
@@ -595,6 +804,7 @@ function route() {
   if (unit) return loadUnit(unit[1], "");
   if (lead) return loadLead(lead[1]);
   if (hash === "/" || hash === "") {
+    if (typeof inboxHome === "function") return inboxHome();
     currentDraft = null;
     currentLead = null;
     pairLeadId = "";
@@ -611,7 +821,10 @@ async function loadUnit(id, forLead) {
     const data = await api("/api/marketplace/draft/" + id);
     showDraft(data.draft);
     const matches = await api("/api/matches?listing=" + encodeURIComponent(id));
+    window.inboxMatches = matches.matches || [];
+    window.inboxMatchFor = id;
     paintMatches($("unitMatches"), matches.matches || [], "lead");
+    if (typeof paintInbox === "function") paintInbox();
     const bar = $("pairBar");
     const hit = (matches.matches || []).find(row => row.leadId === pairLeadId);
     if (hit) {
@@ -623,6 +836,7 @@ async function loadUnit(id, forLead) {
     }
   } catch (err) {
     $("fbMsg").textContent = err.message;
+    if (typeof toast === "function") toast(err.message);
     location.hash = "#/";
   }
 }
@@ -632,7 +846,9 @@ async function loadLead(id) {
     const data = await api("/api/leads/" + id);
     showLead(data.lead);
     const matches = await api("/api/matches?lead=" + encodeURIComponent(id));
+    window.inboxLeadMatches = matches.matches || [];
     paintMatches($("leadMatches"), matches.matches || [], "unit");
+    if (typeof paintInbox === "function") paintInbox();
   } catch (err) {
     $("fbMsg").textContent = err.message;
     location.hash = "#/";
@@ -912,13 +1128,27 @@ $("fbPost").addEventListener("click", async () => {
 });
 
 async function sheetPdfBlob() {
-  return html2pdf().set({
-    margin: 0,
-    image: { type: "jpeg", quality: 0.95 },
-    html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0 },
-    jsPDF: { unit: "pt", format: "letter", orientation: "portrait" },
-    pagebreak: { mode: ["css", "legacy"], after: ".page" }
-  }).from($("sheet")).outputPdf("blob");
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:0;top:0;z-index:-1;pointer-events:none;background:#fff;";
+  const clone = $("sheet").cloneNode(true);
+  clone.removeAttribute("id");
+  clone.hidden = false;
+  clone.style.display = "flex";
+  clone.style.flexDirection = "column";
+  clone.style.gap = "22px";
+  host.appendChild(clone);
+  document.body.appendChild(host);
+  try {
+    return await html2pdf().set({
+      margin: 0,
+      image: { type: "jpeg", quality: 0.95 },
+      html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0 },
+      jsPDF: { unit: "pt", format: "letter", orientation: "portrait" },
+      pagebreak: { mode: ["css", "legacy"], after: ".page" }
+    }).from(clone).outputPdf("blob");
+  } finally {
+    host.remove();
+  }
 }
 
 async function saveSheetPdf(draft) {
@@ -972,5 +1202,6 @@ $("sheet").addEventListener("click", (event) => {
 window.addEventListener("hashchange", route);
 refreshDesk().then(route);
 </script>
+<script src="inbox.js"></script>
 </body>
 </html>

@@ -223,9 +223,11 @@ class DeskServerTests(unittest.TestCase):
             html = response.read().decode()
         self.assertIn("BAM Desk", html)
         self.assertIn("Arial, Helvetica", html)
-        self.assertNotIn("Inter", html)
-        self.assertNotIn("#5b5bd6", html)
-        self.assertNotIn("eeeefc", html)
+        self.assertIn("Match inbox", html)
+        self.assertIn("Search machines, buyers, cities...", html)
+        self.assertIn("Send quote sheet", html)
+        self.assertIn("data-act=\"quote\"", html)
+        self.assertIn("#5b5bd6", html)
         self.assertIn("#/unit/", html)
         self.assertIn("#/lead/", html)
         self.assertIn("/for/", html)
@@ -320,6 +322,42 @@ class DeskServerTests(unittest.TestCase):
         self.assertEqual(packet["lead"]["packets"][0]["listingId"], ingested["drafts"][0]["id"])
         listing = parse_listing(FIXTURE.read_text(encoding="utf-8"), ITEM_URL)
         self.assertEqual(listing["title"], "2019 Ditch Witch JT20 Horizontal Drill")
+
+    def test_inbox_pull_stays_pending_and_actions_log(self):
+        from crm.leads import touch_lead
+
+        created = self._post("/api/marketplace/parse", {
+            "url": ITEM_URL,
+            "html": FIXTURE.read_text(encoding="utf-8"),
+        })
+        draft = created["draft"]
+        self.assertEqual(draft["status"], "pending_verification")
+        self.assertTrue(created["drafts"][0]["fresh"])
+        self.assertGreaterEqual(created["drafts"][0]["photos"], 1)
+        lead = self._post("/api/leads", _buyer())["lead"]
+        called = self._post("/api/desk/action", {
+            "act": "call",
+            "leadId": lead["id"],
+            "listingId": draft["id"],
+            "note": "Call logged with Jose Martinez",
+        })
+        self.assertEqual(called["lead"]["activity"][0]["act"], "call")
+        self.assertEqual(called["lead"]["stage"], "Contacted")
+        staged = self._post("/api/desk/action", {
+            "act": "stage",
+            "leadId": lead["id"],
+            "stage": "Qualified",
+        })
+        self.assertEqual(staged["lead"]["stage"], "Qualified")
+        linked = touch_lead(lead["id"], "link", draft["id"])
+        self.assertEqual(linked["linked"], draft["id"])
+        quoted = self._post("/api/desk/action", {
+            "act": "quote",
+            "leadId": lead["id"],
+            "listingId": draft["id"],
+        })
+        self.assertTrue(quoted["packet"]["pdf"].endswith(".pdf"))
+        self.assertEqual(quoted["lead"]["activity"][0]["act"], "quote")
 
 
 if __name__ == "__main__":

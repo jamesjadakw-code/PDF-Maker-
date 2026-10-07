@@ -14,7 +14,7 @@ from urllib.request import Request, build_opener
 from crm.brochure_file import attach_brochure, pdf_path, save_upload
 from crm.desk import matches_for, packet_hot_matches, snapshot
 from crm.ingest import lead_from_payload
-from crm.leads import attach_packet, get_lead, list_leads, upsert_lead
+from crm.leads import attach_packet, get_lead, list_leads, touch_lead, upsert_lead
 from crm.catalog import process_incoming_third_party_listing
 from crm.marketplace import brochure_photos, marketplace_url, parse_listing, to_brochure
 from crm.photos import first_saved_photo, photo_path, save_listing_photos
@@ -48,6 +48,7 @@ POST_EXACT = {
     "/api/ingest/leads": "ingest_leads",
     "/api/ingest/listings": "ingest_listings",
     "/api/matches/brochure": "match_brochure",
+    "/api/desk/action": "desk_action",
 }
 
 
@@ -239,6 +240,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(200, {"ok": True, "drafts": drafts, "errors": errors, **snapshot()})
         if action == "match_brochure":
             return self._json(200, _prepare_match_brochure(payload))
+        if action == "desk_action":
+            return self._json(200, _desk_action(payload))
         return self._json(404, {"ok": False, "error": "Unknown action."})
 
     def _require_ingest_token(self):
@@ -375,6 +378,25 @@ def _hold(html: str, url: str) -> dict:
         save_draft(draft)
         _vision_refine(draft)
     return draft
+
+
+def _desk_action(payload: dict) -> dict:
+    act = str(payload.get("act") or "").strip()
+    listing_id = str(payload.get("listingId") or "").strip()
+    lead_id = str(payload.get("leadId") or "").strip()
+    note = str(payload.get("note") or "").strip()
+    if act == "quote":
+        if not lead_id or not listing_id:
+            raise ValueError("Choose a unit and a buyer before sending the quote sheet.")
+        result = _prepare_match_brochure({"listingId": listing_id, "leadId": lead_id})
+        lead = touch_lead(result["lead"]["id"], "quote", listing_id, note or "Quote sheet prepared")
+        result["lead"] = lead
+        result.update(snapshot())
+        return result
+    if not lead_id:
+        raise ValueError("Choose a buyer first.")
+    lead = touch_lead(lead_id, act, listing_id, note, str(payload.get("stage") or ""))
+    return {"ok": True, "lead": lead, **snapshot()}
 
 
 def _prepare_match_brochure(payload: dict) -> dict:
