@@ -1,7 +1,8 @@
-"""Optional photo+text make/model/attachment read. Off unless GEMINI_API_KEY is set.
+"""Optional photo+text make/model/attachment read.
 
-The scanner is constrained to the saved Lectura machinery master so a photo
-snaps onto a known unit, then enrich loads that row's specs.
+Off unless BAM_PHOTO_ID=1 and GEMINI_API_KEY is set. Listing title, make,
+and model plus the OEM catalog are the identity source. A photo scan of an
+RT125 Quad must not replace it with a Vermeer RTX lookalike.
 """
 
 from __future__ import annotations
@@ -30,8 +31,16 @@ _PROMPT_TAIL = (
 )
 
 
+def photo_id_enabled() -> bool:
+    """Photo make/model reads stay off. Set BAM_PHOTO_ID=1 to turn them back on."""
+    flag = os.environ.get("BAM_PHOTO_ID", "").strip().lower()
+    return flag in {"1", "true", "yes", "on"}
+
+
 def detect_machine_from_image(image_path: str | None, listing: dict | None = None) -> dict:
     """Return make/model/attachments from a listing photo. Empty dict if unset or failed."""
+    if not photo_id_enabled():
+        return {}
     token = os.environ.get("GEMINI_API_KEY", "").strip() or os.environ.get("GOOGLE_API_KEY", "").strip()
     if not token or not image_path:
         return {}

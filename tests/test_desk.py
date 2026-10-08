@@ -169,6 +169,7 @@ class DeskServerTests(unittest.TestCase):
         os.environ.pop("BAM_CRM_PASSWORD", None)
         store.ROOT = Path(self.tmp.name)
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ.pop("BAM_PHOTO_ID", None)
         os.environ.pop("GEMINI_API_KEY", None)
         os.environ.pop("GOOGLE_API_KEY", None)
         self.specs_patch = patch("crm.enrich.lookup_specs", return_value=[])
