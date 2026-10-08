@@ -306,7 +306,7 @@ def spec_sheet(listing: dict) -> list[dict]:
 
 
 def process_incoming_third_party_listing(listing: dict, image_path: str | None = None, fetcher=None) -> dict:
-    """Facebook / scrape ingest entry. Catalog first, optional photo parse, never blocks."""
+    """Facebook / scrape ingest entry. Catalog first, photo parse off unless BAM_PHOTO_ID=1."""
     try:
         if _is_staged(listing):
             return listing
@@ -315,10 +315,11 @@ def process_incoming_third_party_listing(listing: dict, image_path: str | None =
         listing.setdefault("source_platform", "Third-Party Scrape Stream")
         listing["ingested_timestamp"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         if image_path:
-            from crm.vision import detect_machine_from_image
+            from crm.vision import detect_machine_from_image, photo_id_enabled
 
-            visual = detect_machine_from_image(image_path, listing)
-            _merge_visual(listing, visual)
+            if photo_id_enabled():
+                visual = detect_machine_from_image(image_path, listing)
+                _merge_visual(listing, visual)
         from crm.enrich import enrich_machine_with_oem_specs
 
         return enrich_machine_with_oem_specs(listing, fetcher)
@@ -439,14 +440,15 @@ def _compile_attachments(detected: list[str], index: dict) -> list[dict]:
 
 
 def _merge_visual(listing: dict, visual: dict) -> None:
+    """Fill blanks only. Listing title/make/model win over a photo lookalike."""
     if not visual:
         return
     canonical = bool(visual.get("lectura_canonical"))
-    if visual.get("make") and (canonical or not str(listing.get("make") or "").strip()):
+    if visual.get("make") and not str(listing.get("make") or "").strip():
         listing["make"] = visual["make"]
-    if visual.get("model") and (canonical or not str(listing.get("model") or "").strip()):
+    if visual.get("model") and not str(listing.get("model") or "").strip():
         listing["model"] = visual["model"]
-    if canonical and visual.get("category"):
+    if canonical and visual.get("category") and not str(listing.get("category") or "").strip():
         listing["category"] = visual["category"]
         listing["model_category"] = visual["category"]
     incoming = visual.get("detected_attachments") or visual.get("attachments") or []

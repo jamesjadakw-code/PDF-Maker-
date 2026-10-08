@@ -18,6 +18,7 @@ from crm.leads import attach_packet, get_lead, list_leads, touch_lead, upsert_le
 from crm.catalog import process_incoming_third_party_listing
 from crm.marketplace import brochure_photos, marketplace_url, parse_listing, to_brochure
 from crm.photos import first_saved_photo, photo_path, save_listing_photos
+from crm.vision import photo_id_enabled
 from crm.store import (
     create_draft,
     find_by_item_id,
@@ -342,6 +343,8 @@ def _fill_oem_specs(listing: dict) -> None:
 
 
 def _vision_refine(draft: dict) -> None:
+    if not photo_id_enabled():
+        return
     if not (os.environ.get("GEMINI_API_KEY", "").strip() or os.environ.get("GOOGLE_API_KEY", "").strip()):
         return
     try:

@@ -16,13 +16,19 @@ from crm.vision import detect_machine_from_image
 class CatalogIngestTests(unittest.TestCase):
     def setUp(self):
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ.pop("BAM_PHOTO_ID", None)
         os.environ.pop("GEMINI_API_KEY", None)
         os.environ.pop("GOOGLE_API_KEY", None)
 
     def tearDown(self):
         os.environ.pop("ANAKIN_WIRE_API_KEY", None)
+        os.environ.pop("BAM_PHOTO_ID", None)
         os.environ.pop("GEMINI_API_KEY", None)
         os.environ.pop("GOOGLE_API_KEY", None)
+
+    def _enable_photo_id(self):
+        os.environ["BAM_PHOTO_ID"] = "1"
+        os.environ["GEMINI_API_KEY"] = "test-key"
 
     def test_vermeer_d20x22_uses_cache_pullback_not_web(self):
         item = {
@@ -160,7 +166,7 @@ class CatalogIngestTests(unittest.TestCase):
         }
         jpeg = Path(tempfile.gettempdir()) / "bam-vision.jpg"
         jpeg.write_bytes(b"\xff\xd8\xff\xd9")
-        os.environ["GEMINI_API_KEY"] = "test-key"
+        self._enable_photo_id()
         payload = {
             "candidates": [{
                 "content": {
@@ -199,7 +205,7 @@ class CatalogIngestTests(unittest.TestCase):
         item = {"title": "Yellow excavator on the lot"}
         jpeg = Path(tempfile.gettempdir()) / "bam-vision-lectura.jpg"
         jpeg.write_bytes(b"\xff\xd8\xff\xd9")
-        os.environ["GEMINI_API_KEY"] = "test-key"
+        self._enable_photo_id()
         captured = {}
         payload = {
             "candidates": [{
@@ -247,7 +253,7 @@ class CatalogIngestTests(unittest.TestCase):
     def test_photo_scan_fills_dozer_specs_from_lectura(self):
         jpeg = Path(tempfile.gettempdir()) / "bam-vision-d6.jpg"
         jpeg.write_bytes(b"\xff\xd8\xff\xd9")
-        os.environ["GEMINI_API_KEY"] = "test-key"
+        self._enable_photo_id()
         payload = {
             "candidates": [{
                 "content": {
@@ -287,6 +293,7 @@ class CatalogIngestTests(unittest.TestCase):
     def test_vision_without_key_does_not_call_network(self):
         jpeg = Path(tempfile.gettempdir()) / "bam-vision2.jpg"
         jpeg.write_bytes(b"\xff\xd8\xff\xd9")
+        os.environ["BAM_PHOTO_ID"] = "1"
         with patch("crm.vision.urlopen") as opener:
             out = detect_machine_from_image(str(jpeg), {"title": "Vermeer RTX1250"})
         opener.assert_not_called()
@@ -296,7 +303,7 @@ class CatalogIngestTests(unittest.TestCase):
     def test_vision_failure_does_not_block(self):
         jpeg = Path(tempfile.gettempdir()) / "bam-vision3.jpg"
         jpeg.write_bytes(b"\xff\xd8\xff\xd9")
-        os.environ["GEMINI_API_KEY"] = "test-key"
+        self._enable_photo_id()
         with patch("crm.vision.urlopen", side_effect=URLError("down")):
             out = process_incoming_third_party_listing({
                 "title": "Vermeer D20x22 HDD",
@@ -304,4 +311,70 @@ class CatalogIngestTests(unittest.TestCase):
                 "model": "D20x22",
             }, image_path=str(jpeg))
         self.assertEqual(out["pullback_force"], "20,000 lbs")
+        jpeg.unlink(missing_ok=True)
+
+    def test_photo_id_off_keeps_rt125_when_photo_looks_like_vermeer(self):
+        jpeg = Path(tempfile.gettempdir()) / "bam-rt125-conflict.jpg"
+        jpeg.write_bytes(b"\xff\xd8\xff\xd9")
+        os.environ["GEMINI_API_KEY"] = "test-key"
+        item = {
+            "title": "2015 Ditch Witch RT125 with vibratory plow and rear reel",
+            "year": "2015",
+            "make": "Ditch Witch",
+            "model": "RT125",
+        }
+        with patch("crm.vision.urlopen") as opener, \
+             patch("crm.enrich.lookup_specs") as lookup:
+            out = process_incoming_third_party_listing(item, image_path=str(jpeg))
+        opener.assert_not_called()
+        lookup.assert_not_called()
+        self.assertEqual(out["make"], "Ditch Witch")
+        self.assertEqual(out["model"], "RT125")
+        self.assertEqual(out["engine_power"], "121 hp")
+        self.assertEqual(out["operating_weight"], "15,300 lb")
+        self.assertNotEqual(out["make"], "Vermeer")
+        jpeg.unlink(missing_ok=True)
+
+    def test_photo_id_does_not_overwrite_listed_rt125_with_rtx(self):
+        jpeg = Path(tempfile.gettempdir()) / "bam-rt125-overwrite.jpg"
+        jpeg.write_bytes(b"\xff\xd8\xff\xd9")
+        self._enable_photo_id()
+        payload = {
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "text": json.dumps({
+                            "make": "Vermeer",
+                            "model": "RTX1250",
+                            "detected_attachments": ["vibratory plow"],
+                        })
+                    }]
+                }
+            }]
+        }
+
+        class FakeResp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps(payload).encode()
+
+        item = {
+            "title": "2015 Ditch Witch RT125 Quad",
+            "year": "2015",
+            "make": "Ditch Witch",
+            "model": "RT125",
+        }
+        with patch("crm.vision.urlopen", return_value=FakeResp()), \
+             patch("crm.enrich.lookup_specs") as lookup:
+            out = process_incoming_third_party_listing(item, image_path=str(jpeg))
+        lookup.assert_not_called()
+        self.assertEqual(out["make"], "Ditch Witch")
+        self.assertEqual(out["model"], "RT125")
+        self.assertEqual(out["engine_power"], "121 hp")
+        self.assertIn("plow", out["attachments"])
         jpeg.unlink(missing_ok=True)
