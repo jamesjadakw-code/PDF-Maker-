@@ -208,6 +208,15 @@
     return rows;
   }
 
+  function money(n) {
+    if (n == null || n === '') return '';
+    var s = String(n).trim();
+    if (!/^\$?[\d,]+(\.\d+)?$/.test(s)) return s;
+    var num = Number(s.replace(/[^0-9.]/g, ''));
+    if (!num) return s;
+    return '$' + Math.round(num).toLocaleString('en-US');
+  }
+
   function junkTitle(title) {
     var t = String(title || '').trim();
     return !t || JUNK.test(t) || t.length < 3;
@@ -281,8 +290,8 @@
       '.v02-row{display:grid;grid-template-columns:18px 52px 1fr auto;gap:10px;padding:10px 14px;border-bottom:1px solid #f2f2f5;cursor:pointer;align-items:center;width:100%;text-align:left;background:#fff;font:inherit;color:inherit}',
       '.v02-row:hover{background:#fafafc}.v02-row.sel{background:#eeeefc;box-shadow:inset 2px 0 #5b5bd6}',
       '.v02-row img,.v02-ph{width:52px;height:40px;border-radius:6px;object-fit:cover;background:#f3f3f6;border:1px solid #ececf0}',
-      '.v02-rt{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.v02-rm{color:#6f7180;font-size:12px;margin-top:2px}',
+      '.v02-rt{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.v02-rm{display:block;color:#6f7180;font-size:12px;margin-top:2px;white-space:normal}',
       '.v02-score{font-weight:700;font-size:12px;border-radius:20px;padding:2px 8px;background:#f1f1f4;color:#6f7180}',
       '.v02-score.hot{background:#e7f7ee;color:#18a957}.v02-score.warm{background:#fdf3e2;color:#d97706}',
       '.v02-detail{overflow:auto;max-height:78vh;padding:0 0 88px;position:relative;background:#fff}',
@@ -296,7 +305,9 @@
       '.v02-props{display:grid;grid-template-columns:110px 1fr 110px 1fr;gap:6px 12px;margin:12px 0}',
       '.v02-props dt{color:#6f7180}',
       '.v02-sec{font-size:12px;font-weight:650;color:#6f7180;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}',
-      '.v02-ing{display:flex;gap:8px;align-items:flex-start;background:#fff7f7;border:1px solid #ffd9da;color:#9f1d22;border-radius:10px;padding:8px 10px;margin-bottom:10px}',
+      '.v02-ing{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;background:#fff7f7;border:1px solid #ffd9da;color:#9f1d22;border-radius:10px;padding:8px 10px;margin-bottom:10px}',
+      '.v02-ing b{flex:none;background:#e5484d;color:#fff;border-radius:5px;padding:1px 6px;font-size:11px}',
+      '.v02-ing span{flex:1;min-width:160px}',
       '.v02-mc{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}',
       '.v02-buyer{border:1px solid #ececf0;border-radius:10px;padding:12px;cursor:pointer;position:relative;background:#fff;text-align:left;font:inherit;color:inherit;width:100%}',
       '.v02-buyer.on{border-color:#5b5bd6;box-shadow:0 0 0 3px #5b5bd622}',
@@ -308,7 +319,7 @@
       '.v02-abar{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;display:flex;gap:4px;background:#1c1d22;color:#fff;border-radius:12px;padding:6px;box-shadow:0 10px 30px #0003;z-index:40;max-width:calc(100% - 24px);overflow:auto}',
       '.v02-abar button{background:transparent;border:0;color:#e9e9ee;font:500 12.5px Inter,system-ui,sans-serif;padding:7px 10px;border-radius:8px;cursor:pointer;white-space:nowrap}',
       '.v02-abar button:hover{background:#ffffff1a}',
-      '.v02-toast{position:fixed;right:16px;bottom:78px;z-index:41;background:#fff;border:1px solid #ececf0;border-radius:10px;box-shadow:0 8px 24px #0000001f;padding:10px 12px;max-width:360px}',
+      '.v02-toast{position:fixed;left:16px;bottom:78px;z-index:50;background:#fff;border:1px solid #ececf0;border-radius:10px;box-shadow:0 8px 24px #0000001f;padding:10px 12px;max-width:360px}',
       '.v02-scrim{position:fixed;inset:0;background:#0f0f1a33;z-index:42}',
       '.v02-sheet{position:fixed;top:10px;right:10px;bottom:10px;width:min(500px,calc(100% - 20px));background:#fff;color:#1c1d22;border-radius:14px;box-shadow:0 20px 60px #0003;z-index:43;display:flex;flex-direction:column}',
       '.v02-sheet header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #ececf0}',
@@ -426,7 +437,7 @@
     var ask = (unit && unit.sellerAsk) || row.ask || '';
     var pairs = [
       ['Asking', buyer || 'Call for Price'],
-      ['Seller ask', ask ? ask + ' · internal' : 'None · internal'],
+      ['Seller ask', ask ? money(ask) + ' · internal' : 'None · internal'],
       ['Hours', (unit && unit.hours != null ? unit.hours : row.hours) || '—'],
       ['Location', loc],
       ['ZIP', zip || '—'],
